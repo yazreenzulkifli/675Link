@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lab (test) build: distinct launcher name so it's not confused with the everyday app. -->
+<resources>
+    <string name="app_name" translatable="false">Open CfMoto Lab</string>
+</resources>

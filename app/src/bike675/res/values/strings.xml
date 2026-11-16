@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">675Link</string>
+    <!-- Launcher label for this build. Only defined here, so locale app_name overrides in main
+         (tr/es/ca/bg/hu/ko) can't put the old name back. -->
+    <string name="app_name_675" translatable="false">675Link</string>
+    <string name="home_default_title">675Link</string>
+    <string name="notif_aa_title">675Link — Android Auto</string>
+    <string name="notif_map_title">675Link Map</string>
+    <string name="notif_mirror_title">675Link</string>
+    <string name="supported_bikes_intro">This build is made for the CFMoto 675NK and 675SR dash only. Open the MotoPlay / EasyConnect pairing QR on the dash, then tap Connect.</string>
+    <string name="supported_bikes_confirmed_title">Supported in this build</string>
+    <string name="supported_bikes_confirmed">CFMoto: 675NK · 675SR · 675SR‑R</string>
+    <string name="supported_bikes_other_title"></string>
+    <string name="supported_bikes_other"></string>
+    <string name="supported_bikes_full_title"></string>
+    <string name="supported_bikes_full"></string>
+    <string name="supported_bikes_unlikely_title"></string>
+    <string name="supported_bikes_unlikely"></string>
+    <string name="supported_bikes_footer">Other bikes: use the full OpenCfMoto build.</string>
+</resources>

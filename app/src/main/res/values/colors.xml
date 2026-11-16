@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Brand: CFMoto-inspired sport orange on a dark "cockpit" surface. -->
+    <color name="brand_orange">#FF6A2C</color>
+    <color name="brand_orange_dark">#E85A1E</color>
+    <color name="on_brand">#FFFFFF</color>
+
+    <!-- Dark surfaces -->
+    <color name="bg">#0E1116</color>
+    <color name="surface">#171B22</color>
+    <color name="surface_high">#1F242E</color>
+    <color name="outline">#2C333F</color>
+
+    <!-- Text -->
+    <color name="text_primary">#F2F5FA</color>
+    <color name="text_secondary">#9AA4B2</color>
+
+    <!-- Status semantics -->
+    <color name="status_live">#34C759</color>
+    <color name="status_busy">#FFB020</color>
+    <color name="status_error">#FF5A52</color>
+    <color name="status_idle">#8A93A3</color>
+
+    <!-- Home screen — light "glaze" smart-mobility tokens (home screen only; rest of app is dark). -->
+    <color name="home_bg">#F2F7FA</color>
+    <color name="home_bg_mid">#F8FBFC</color>
+    <color name="home_bg_end">#EEF5F8</color>
+    <color name="home_card">#FFFFFF</color>
+    <color name="home_card_soft">#F6FAFC</color>
+    <color name="home_border">#E8EEF3</color>
+    <color name="home_text">#0F172A</color>
+    <color name="home_text_2">#64748B</color>
+    <color name="home_cyan">#00B4D8</color>
+    <color name="home_cyan_2">#00C2CB</color>
+    <color name="home_cyan_soft">#E0F6FA</color>
+    <color name="home_orange">#FF5E1E</color>
+    <color name="home_mint">#10B981</color>
+    <color name="home_mint_soft">#DDF5EC</color>
+    <color name="home_amber">#F59E0B</color>
+    <color name="home_red">#EF4444</color>
+    <color name="home_red_2">#F95738</color>
+
+    <!-- Controls screen — "Super Red" edition. -->
+    <color name="ctl_red">#FF0038</color>
+    <color name="ctl_red_dark">#D6002F</color>
+    <color name="ctl_rose_soft">#FFF1F3</color>
+    <color name="ctl_rose_border">#FECDD6</color>
+    <color name="ctl_rose_rail">#FFE4E9</color>
+    <color name="ctl_rose_text">#E11D48</color>
+    <color name="ctl_bg_start">#FFF5F6</color>
+    <color name="ctl_bg_end">#F9F9FF</color>
+    <color name="ctl_muted">#94A3B8</color>
+</resources>
