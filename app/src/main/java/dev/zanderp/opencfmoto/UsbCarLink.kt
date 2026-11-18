@@ -142,6 +142,89 @@ object UsbCarLink {
         try { synchronized(fileLock) { logFile(ctx).delete() } } catch (_: Exception) {}
     }
 
+    // ------------------------------------------------------------------ auto-connect watcher
+
+    @Volatile private var watching = false
+    private var permReceiver: BroadcastReceiver? = null
+
+    private fun permissionAction(app: Context) = "${app.packageName}.USB_PROBE_PERMISSION"
+
+    private fun accessoryFrom(intent: Intent): UsbAccessory? =
+        if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(UsbManager.EXTRA_ACCESSORY, UsbAccessory::class.java)
+        else @Suppress("DEPRECATION") intent.getParcelableExtra(UsbManager.EXTRA_ACCESSORY)
+
+    /**
+     * Process-wide watcher: whenever the probe is enabled and no link is open, look for an attached
+     * car accessory and open it by itself (asking for USB permission when needed). This removes the
+     * manual "Check now" tap, and keeps working after the car drops and re-attaches the USB link
+     * (every Detect Phone / Retry on the car) without the probe screen being open.
+     */
+    fun startWatching(ctx: Context) {
+        init(ctx)
+        synchronized(this) { if (watching) return; watching = true }
+        val app = ctx.applicationContext
+        val usb = app.getSystemService(Context.USB_SERVICE) as? UsbManager
+        if (usb == null) { watching = false; return }
+        val action = permissionAction(app)
+        val r = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action != action) return
+                val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
+                val acc = accessoryFrom(intent)
+                log("permission ${if (granted) "granted" else "denied"}")
+                if (granted && acc != null && !isOpen) openAndAutoStart(app, acc, usb)
+            }
+        }
+        val f = IntentFilter(action)
+        if (Build.VERSION.SDK_INT >= 33) app.registerReceiver(r, f, Context.RECEIVER_NOT_EXPORTED)
+        else @Suppress("UnspecifiedRegisterReceiverFlag") app.registerReceiver(r, f)
+        permReceiver = r
+        kotlin.concurrent.thread(name = "usb-car-watch", isDaemon = true) {
+            var lastAsk = 0L
+            while (watching) {
+                try { Thread.sleep(800) } catch (_: InterruptedException) { break }
+                if (isOpen || !UsbProbePrefs.enabled(app)) continue
+                val acc = try { usb.accessoryList?.firstOrNull() } catch (_: Exception) { null } ?: continue
+                try {
+                    if (usb.hasPermission(acc)) {
+                        log("car attached — opening the link")
+                        openAndAutoStart(app, acc, usb)
+                    } else if (System.currentTimeMillis() - lastAsk > 6000) {
+                        lastAsk = System.currentTimeMillis()
+                        val pi = android.app.PendingIntent.getBroadcast(
+                            app, 0, Intent(action).setPackage(app.packageName),
+                            android.app.PendingIntent.FLAG_MUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT,
+                        )
+                        log("car attached — asking for USB permission…")
+                        usb.requestPermission(acc, pi)
+                    }
+                } catch (e: Exception) {
+                    log("watcher error: $e")
+                }
+            }
+        }
+        log("watching for the car — plug in the USB cable any time")
+    }
+
+    /** Open the link; if Android Auto is not already live, ask the app to start it (best effort). */
+    private fun openAndAutoStart(app: Context, acc: UsbAccessory, usb: UsbManager) {
+        open(app, acc, usb)
+        if (isOpen && UsbProbePrefs.autoStart(app) && UsbProbePrefs.bridge(app) &&
+            claimAutoStart() && !isWarm()
+        ) {
+            log("Android Auto is not ready yet — starting it now")
+            try {
+                app.startActivity(
+                    Intent(app, MainActivity::class.java)
+                        .putExtra(UsbCar.EXTRA_START, true)
+                        .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            } catch (e: Exception) {
+                log("could not start Android Auto from the background: $e — open the app and tap Get ready")
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ open / close
 
     @Synchronized

@@ -30,8 +30,8 @@ import androidx.core.view.WindowInsetsCompat
 /** Saved settings for the (experimental) Perodua / Carbit USB car link. */
 object UsbProbePrefs {
     private const val PREF = "usb_probe"
-    fun enabled(ctx: Context) = prefs(ctx).getBoolean("enabled", false)
-    fun replyCnxn(ctx: Context) = prefs(ctx).getBoolean("reply_cnxn", false)
+    fun enabled(ctx: Context) = prefs(ctx).getBoolean("enabled", true)
+    fun replyCnxn(ctx: Context) = prefs(ctx).getBoolean("reply_cnxn", true)
     fun setEnabled(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("enabled", on).apply()
     fun setReplyCnxn(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("reply_cnxn", on).apply()
     fun variant(ctx: Context) = prefs(ctx).getInt("variant", 0).coerceIn(0, AdbWire.VARIANTS.lastIndex)
@@ -93,7 +93,16 @@ class UsbProbeActivity : AppCompatActivity() {
         }
         UsbCarLink.onChanged = { ui.post { refreshStatus() } }
         refreshStatus()
+        // Hands-free: keep watching for the car in the background, and get Android Auto ready as soon
+        // as this screen opens so the car's ~20 s timer never waits for it.
+        UsbCarLink.startWatching(this)
         handleIntent(intent)
+        if (intent.action != UsbManager.ACTION_USB_ACCESSORY_ATTACHED &&
+            UsbProbePrefs.enabled(this) && UsbProbePrefs.autoStart(this) && UsbProbePrefs.bridge(this) &&
+            !UsbCarLink.isOpen && !UsbCarLink.isWarm()
+        ) {
+            ui.postDelayed({ if (!isFinishing) startAndroidAuto() }, 600)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
