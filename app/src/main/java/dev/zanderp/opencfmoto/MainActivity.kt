@@ -112,41 +112,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Pick the bike profile from the QR up front — it drives the Android Auto resolution/orientation,
      *  which must be set before AA starts. CLIENT_INFO refines it later during the PXC handshake. */
-    private fun applyProfile(qr: QrData) {
-        AppSettings.applyToHolder(this)
-        BikeProfileHolder.active = BikeProfiles.selectByQr(qr, this)
-        DashMemory.setLastDashTouch(this, BikeProfileHolder.advertisesScreenTouch)
-        val userOverride = VideoPrefs.resolutionOverride(this, BikeProfileHolder.active)
-        // In AUTO mode, if a previous session revealed this dash is a different orientation than the
-        // profile assumes, flip AA to match. Learned from the dash's REQ_CONFIG_CAPTURE (see DashMemory).
-        val autoGeo = if (userOverride == null) DashMemory.specFor(this, qr.ssid, BikeProfileHolder.active) else null
-        BikeProfileHolder.aaVideoOverride = userOverride ?: autoGeo
-        val spec = BikeProfileHolder.aaVideo
-        BikeProfileHolder.aaContentMargins = VideoPrefs.aaMarginsFor(this, spec, qr.ssid)
-        val aspectMode = VideoPrefs.matchAspectMode(this)
-        val aspectNote = BikeProfileHolder.aaContentMargins.let { m ->
-            when {
-                m.any -> " [match-aspect ${aspectMode.name}: margins ${m.marginW}x${m.marginH}]"
-                aspectMode == MatchAspectMode.OFF -> " [match-aspect OFF]"
-                VideoPrefs.detectedPanelSize(this) == null -> " [match-aspect: waiting for panel size]"
-                else -> " [match-aspect ${aspectMode.name}: margins 0]"
-            }
-        }
-        val note = when {
-            userOverride != null -> " (override: ${VideoPrefs.resolution(this).label})"
-            autoGeo != null -> " (auto-orientation from last connect)"
-            else -> ""
-        }
-        val touchNote = when {
-            BikeProfileHolder.forceNonTouch -> " [Disable touchscreen ON — focus/knob AA]"
-            BikeProfileHolder.forceTouch -> " [Force touchscreen ON — touch AA]"
-            else -> ""
-        }
-        val ov = BikeProfileHolder.profileOverride
-        val ovNote = if (ov != ProfileOverride.AUTO) " [profile override: ${ov.shortLabel}]" else ""
-        log("→ bike profile (QR ssid=${qr.ssid} modelId=${qr.modelId}): ${BikeProfileHolder.active.name} " +
-            "→ AA ${spec.width}x${spec.height} @${spec.dpi}dpi$note$touchNote$ovNote$aspectNote")
-    }
+    private fun applyProfile(qr: QrData) = BikeProfileApply.apply(this, qr, ::log)
 
     /**
      * Stop the current dash projection so the next mode can open a clean PXC session.

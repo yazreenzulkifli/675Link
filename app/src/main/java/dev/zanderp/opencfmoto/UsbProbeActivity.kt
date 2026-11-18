@@ -219,13 +219,8 @@ class UsbProbeActivity : AppCompatActivity() {
             if (UsbCarLink.isOpen) "starting Android Auto over the USB link …"
             else "getting Android Auto ready before the car attaches …",
         )
-        startActivity(
-            Intent(this, MainActivity::class.java)
-                .putExtra(UsbCar.EXTRA_START, true)
-                .putExtra(UsbCar.EXTRA_BACK_TO_PROBE, true)
-                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK),
-            android.app.ActivityOptions.makeCustomAnimation(this, 0, 0).toBundle(),
-        )
+        // Headless: runs the start logic without opening the main screen, so this screen stays put.
+        UsbCarStart.start(this)
     }
 
     private fun shareLog() {

@@ -217,11 +217,7 @@ object UsbCarLink {
         ) {
             log("Android Auto is not ready yet — starting it now")
             try {
-                app.startActivity(
-                    Intent(app, MainActivity::class.java)
-                        .putExtra(UsbCar.EXTRA_START, true)
-                        .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
+                UsbCarStart.start(app)
             } catch (e: Exception) {
                 log("could not start Android Auto from the background: $e — open the app and tap Get ready")
             }
