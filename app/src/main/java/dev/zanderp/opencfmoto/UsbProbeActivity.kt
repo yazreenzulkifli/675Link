@@ -58,7 +58,6 @@ class UsbProbeActivity : AppCompatActivity() {
     private lateinit var logView: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var statusView: TextView
-    private lateinit var variantSpinner: android.widget.Spinner
 
     private var usb: UsbManager? = null
     private val actionPermission get() = "$packageName.USB_PROBE_PERMISSION"
@@ -142,40 +141,6 @@ class UsbProbeActivity : AppCompatActivity() {
         root.addView(text(getString(R.string.usb_probe_title), 20f, true))
         root.addView(text(getString(R.string.usb_probe_help), 13f).apply { setPadding(0, px(8), 0, px(8)) })
 
-        root.addView(sw(getString(R.string.usb_probe_enable), UsbProbePrefs.enabled(this)) { on ->
-            UsbProbePrefs.setEnabled(this, on)
-            UsbCarLink.log(if (on) "probe enabled" else "probe disabled")
-            if (!on) UsbCarLink.close()
-        })
-        root.addView(sw(getString(R.string.usb_probe_reply), UsbProbePrefs.replyCnxn(this)) {
-            UsbProbePrefs.setReplyCnxn(this, it)
-        })
-
-        root.addView(text("Reply style (libjadbd guesses)", 13f, true).apply { setPadding(0, px(8), 0, 0) })
-        variantSpinner = android.widget.Spinner(this).apply {
-            adapter = android.widget.ArrayAdapter(
-                this@UsbProbeActivity, android.R.layout.simple_spinner_dropdown_item,
-                AdbWire.VARIANTS.mapIndexed { i, v -> "${i + 1}/${AdbWire.VARIANTS.size}  ${v.label}" },
-            )
-            setSelection(UsbProbePrefs.variant(this@UsbProbeActivity))
-            onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(p: android.widget.AdapterView<*>?, v: View?, pos: Int, id: Long) {
-                    UsbProbePrefs.setVariant(this@UsbProbeActivity, pos)
-                }
-                override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
-            }
-        }
-        root.addView(variantSpinner)
-        root.addView(sw("Bridge to OpenCfMoto (serve ports 10920-10922 to the car)", UsbProbePrefs.bridge(this)) {
-            UsbProbePrefs.setBridge(this, it)
-        })
-        root.addView(sw("Auto-start Android Auto when the car connects", UsbProbePrefs.autoStart(this)) {
-            UsbProbePrefs.setAutoStart(this, it)
-        })
-        root.addView(sw("Try the next style on every reconnect (probe only, bridge off)", UsbProbePrefs.autoCycle(this)) {
-            UsbProbePrefs.setAutoCycle(this, it)
-        })
-
         statusView = text(getString(R.string.usb_probe_status_idle), 14f, true).apply { setPadding(0, px(8), 0, px(8)) }
         root.addView(statusView)
 
@@ -197,6 +162,9 @@ class UsbProbeActivity : AppCompatActivity() {
                 logView.text = ""; LogBus.clear(); UsbCarLink.clearLog(this); CrashGuard.clearCrash(this)
             },
         ))
+        root.addView(row(
+            getString(R.string.usb_probe_settings) to { startActivity(Intent(this, UsbSetupActivity::class.java)) },
+        ))
 
         logView = TextView(this).apply {
             typeface = Typeface.MONOSPACE; textSize = 11f; setTextIsSelectable(true)
@@ -211,7 +179,6 @@ class UsbProbeActivity : AppCompatActivity() {
         statusView.text = getString(
             if (UsbCarLink.isOpen) R.string.usb_probe_status_open else R.string.usb_probe_status_idle,
         )
-        variantSpinner.setSelection(UsbProbePrefs.variant(this))
     }
 
     private fun startAndroidAuto() {

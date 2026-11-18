@@ -141,6 +141,10 @@
                 android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED"
                 android:resource="@xml/carbit_accessory_filter" />
         </activity>
+        <activity
+            android:name=".UsbSetupActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
         <service
             android:name=".ProjectionService"
             android:exported="false"

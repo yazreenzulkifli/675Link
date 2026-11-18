@@ -340,7 +340,10 @@
     <string name="usb_probe_open">USB probe (Perodua / Carbit car)…</string>
     <string name="usb_probe_setup_help">Experimental. Logs what a Carbit-style car head unit (for example Perodua Smart Link) sends over USB. It does not project anything yet.</string>
     <string name="usb_probe_title">Carbit USB probe (experimental)</string>
-    <string name="usb_probe_help">For car head units that use the Carbit USB accessory (Perodua Smart Link and similar). Turn the probe on, then plug the phone into the car USB port and open the phone-link mode on the car. This screen only records what the car sends so the protocol can be worked out. Use Share to send the log.</string>
+    <string name="usb_probe_help">For car head units that use the Carbit USB accessory (Perodua Smart Link and similar). Wait until the log says \"local servers ready\", then plug the phone into the car USB port. The link opens by itself. Use Share log to send the log, and Settings to change how it behaves.</string>
+    <string name="usb_setup_title">USB car settings</string>
+    <string name="usb_setup_help">Changes are saved straight away. The defaults work for the Perodua tested, so most people never need to change anything here.</string>
+    <string name="usb_probe_settings">Settings</string>
     <string name="usb_probe_enable">Enable USB probe</string>
     <string name="usb_probe_reply">Also answer an ADB-style handshake (experimental)</string>
     <string name="usb_probe_check_now">Check now</string>
