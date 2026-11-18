@@ -38,6 +38,8 @@ object BikeLink {
     @Volatile private var p2pBindIp: Inet4Address? = null
     @Volatile private var p2pGatewayIp: Inet4Address? = null
     @Volatile private var aaDropRetried = false
+    /** USB car link ([UsbCarLink]): no Wi-Fi, the prober serves loopback ports for the USB bridge. */
+    @Volatile private var usbMode = false
 
     /** Reset the gate at the start of a fresh Android Auto connection attempt. */
     @Synchronized
@@ -47,6 +49,8 @@ object BikeLink {
         bikeNetwork = null
         networkReady = false
         proberStarted = false
+        usbMode = false
+        UsbCarLink.markLocalDown()
         p2pBindIp = null
         p2pGatewayIp = null
         aaDropRetried = false
@@ -77,6 +81,17 @@ object BikeLink {
         maybeStartProbe()
     }
 
+    /** USB car: the transport is the already-open [UsbCarLink]; nothing to join, just mark ready. */
+    @Synchronized
+    fun markUsbReady() {
+        usbMode = true
+        bikeNetwork = null
+        networkReady = true
+        maybeStartProbe()
+    }
+
+    val isUsb: Boolean get() = usbMode
+
     /** Wi‑Fi Direct: no [Network] — store bind/gateway IPs and mark ready. */
     @Synchronized
     fun markP2pReady(bindIp: Inet4Address, gatewayIp: Inet4Address) {
@@ -91,6 +106,18 @@ object BikeLink {
         if (proberStarted || !aaVideoSteady || !networkReady) return
         val p = prober ?: return
         proberStarted = true
+        if (usbMode) {
+            LogBus.log("→ AA video is live — starting loopback PXC servers for the USB car")
+            ConnectionState.set(Phase.PXC_CONNECTING, UsbCar.DISPLAY_NAME)
+            try {
+                p.startLoopback()
+                UsbCarLink.localReady()
+            } catch (e: Exception) {
+                LogBus.log("prober (USB) start failed: $e")
+                ConnectionState.set(Phase.ERROR, "prober start failed")
+            }
+            return
+        }
         appContext?.let { ctx ->
             if (BikeWifi.rebindProcessToBike(ctx)) {
                 LogBus.log("→ process bound to bike Wi-Fi (AA video is live)")

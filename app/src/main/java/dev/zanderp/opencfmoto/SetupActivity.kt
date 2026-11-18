@@ -46,7 +46,6 @@ class SetupActivity : AppCompatActivity() {
     private lateinit var holdDesc: TextView
     private lateinit var nonTouchDesc: TextView
     private lateinit var forceTouchDesc: TextView
-    private lateinit var profileDesc: TextView
     private lateinit var btStatus: TextView
     private lateinit var resumeBtn: MaterialButton
 
@@ -68,6 +67,16 @@ class SetupActivity : AppCompatActivity() {
             insets
         }
 
+        // Light "glaze" screen → dark status/nav icons, like Home.
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
+        findViewById<android.view.View>(R.id.setup_back).setOnClickListener { finish() }
+        findViewById<android.view.View>(R.id.setup_refresh).setOnClickListener {
+            refresh(); refreshOptions(); refreshBluetooth()
+        }
+
         step1Title = findViewById(R.id.step1_title)
         step1Btn = findViewById(R.id.step1_btn)
         step2Title = findViewById(R.id.step2_title)
@@ -84,7 +93,6 @@ class SetupActivity : AppCompatActivity() {
         holdDesc = findViewById(R.id.hold_desc)
         nonTouchDesc = findViewById(R.id.nontouch_desc)
         forceTouchDesc = findViewById(R.id.forcetouch_desc)
-        profileDesc = findViewById(R.id.profile_desc)
         btStatus = findViewById(R.id.bt_status)
         resumeBtn = findViewById(R.id.resume_perm_btn)
 
@@ -129,6 +137,7 @@ class SetupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.theme_auto).setOnClickListener { setMapTheme(MapTheme.AUTO) }
         findViewById<MaterialButton>(R.id.theme_day).setOnClickListener { setMapTheme(MapTheme.DAY) }
         findViewById<MaterialButton>(R.id.theme_night).setOnClickListener { setMapTheme(MapTheme.NIGHT) }
+        setupHandlebarToggle()
         findViewById<MaterialButton>(R.id.dbltap_fast).setOnClickListener { setDoubleTap(DoubleTapDelay.FAST) }
         findViewById<MaterialButton>(R.id.dbltap_normal).setOnClickListener { setDoubleTap(DoubleTapDelay.NORMAL) }
         findViewById<MaterialButton>(R.id.dbltap_slow).setOnClickListener { setDoubleTap(DoubleTapDelay.SLOW) }
@@ -144,58 +153,17 @@ class SetupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.autoconnect_off).setOnClickListener { setAutoConnect(false) }
         findViewById<MaterialButton>(R.id.recovery_on).setOnClickListener { setAutoRecovery(true) }
         findViewById<MaterialButton>(R.id.recovery_off).setOnClickListener { setAutoRecovery(false) }
-        findViewById<MaterialButton>(R.id.btclock_on).setOnClickListener { setBtClock(true) }
-        findViewById<MaterialButton>(R.id.btclock_off).setOnClickListener { setBtClock(false) }
-        findViewById<MaterialButton>(R.id.clocklab_preset_latest).setOnClickListener {
-            setClockLabPreset(ClockLabPreset.LATEST)
-        }
-        findViewById<MaterialButton>(R.id.clocklab_preset_2012).setOnClickListener {
-            setClockLabPreset(ClockLabPreset.V2012)
-        }
-        findViewById<MaterialButton>(R.id.clocklab_preset_zontes).setOnClickListener {
-            setClockLabPreset(ClockLabPreset.ZONTES)
-        }
-        findViewById<MaterialButton>(R.id.clocklab_preset_phone).setOnClickListener {
-            setClockLabPreset(ClockLabPreset.PHONE_SYNC)
-        }
-        findViewById<MaterialButton>(R.id.clocklab_preset_bt).setOnClickListener {
-            setClockLabPreset(ClockLabPreset.BT_LISTEN)
-        }
-        findViewById<MaterialButton>(R.id.clocklab_query_empty).setOnClickListener {
-            setClockLabQuery(ClockQueryMode.EMPTY)
-        }
-        findViewById<MaterialButton>(R.id.clocklab_query_carbit).setOnClickListener {
-            setClockLabQuery(ClockQueryMode.CARBIT)
-        }
-        findViewById<MaterialButton>(R.id.clocklab_query_zontes).setOnClickListener {
-            setClockLabQuery(ClockQueryMode.ZONTES)
-        }
-        findViewById<MaterialButton>(R.id.clocklab_query_none).setOnClickListener {
-            setClockLabQuery(ClockQueryMode.NO_ACK)
-        }
-        findViewById<MaterialButton>(R.id.clocklab_sync_echo).setOnClickListener {
-            setClockLabTimeSync(ClockTimeSyncMode.ECHO)
-        }
-        findViewById<MaterialButton>(R.id.clocklab_sync_phone).setOnClickListener {
-            setClockLabTimeSync(ClockTimeSyncMode.PHONE)
-        }
-        findViewById<MaterialButton>(R.id.keepwifi_on).setOnClickListener { setKeepWifi(true) }
-        findViewById<MaterialButton>(R.id.keepwifi_off).setOnClickListener { setKeepWifi(false) }
         findViewById<MaterialButton>(R.id.logtrips_on).setOnClickListener { setLogTrips(true) }
         findViewById<MaterialButton>(R.id.logtrips_off).setOnClickListener { setLogTrips(false) }
         findViewById<MaterialButton>(R.id.nontouch_on).setOnClickListener { setForceNonTouch(true) }
         findViewById<MaterialButton>(R.id.nontouch_off).setOnClickListener { setForceNonTouch(false) }
         findViewById<MaterialButton>(R.id.forcetouch_on).setOnClickListener { setForceTouch(true) }
         findViewById<MaterialButton>(R.id.forcetouch_off).setOnClickListener { setForceTouch(false) }
-        findViewById<MaterialButton>(R.id.profile_auto).setOnClickListener { setProfileOverride(ProfileOverride.AUTO) }
-        findViewById<MaterialButton>(R.id.profile_legacy).setOnClickListener { setProfileOverride(ProfileOverride.LEGACY) }
-        findViewById<MaterialButton>(R.id.profile_nk800).setOnClickListener { setProfileOverride(ProfileOverride.NK800) }
-        findViewById<MaterialButton>(R.id.profile_800mt).setOnClickListener { setProfileOverride(ProfileOverride.CFDL26_LAND) }
-        findViewById<MaterialButton>(R.id.profile_1000mtx).setOnClickListener { setProfileOverride(ProfileOverride.CFDL26_PORT) }
-        findViewById<MaterialButton>(R.id.profile_nk_adv).setOnClickListener { setProfileOverride(ProfileOverride.NK_ADV) }
-        findViewById<MaterialButton>(R.id.profile_clc450).setOnClickListener { setProfileOverride(ProfileOverride.CLC450) }
         findViewById<MaterialButton>(R.id.btn_screen_margins).setOnClickListener { ScreenMarginsActivity.start(this) }
         findViewById<MaterialButton>(R.id.btn_custom_resolution).setOnClickListener { CustomResolutionActivity.start(this) }
+        findViewById<MaterialButton>(R.id.btn_usb_probe).setOnClickListener {
+            startActivity(android.content.Intent(this, UsbProbeActivity::class.java))
+        }
         findViewById<MaterialButton>(R.id.transport_auto).setOnClickListener { setTransport(WifiTransport.AUTO) }
         findViewById<MaterialButton>(R.id.transport_ap).setOnClickListener { setTransport(WifiTransport.AP) }
         findViewById<MaterialButton>(R.id.transport_p2p).setOnClickListener { setTransport(WifiTransport.P2P) }
@@ -335,6 +303,38 @@ class SetupActivity : AppCompatActivity() {
     }
 
     /** Map day/night applies live (no reconnect needed) — push it to any running AA session. */
+    /** Handlebar-button mode toggle + "Customize buttons" (moved here from the Controls page). */
+    private fun setupHandlebarToggle() {
+        AppSettings.applyToHolder(this)
+        val live = BikeProfileHolder.active
+        val touchDash: Boolean? = if (live !== BikeProfiles.legacy) {
+            DashMemory.setLastDashTouch(this, BikeProfileHolder.advertisesScreenTouch)
+            BikeProfileHolder.advertisesScreenTouch
+        } else {
+            DashMemory.lastDashTouch(this)
+        }
+        if (touchDash == true) {
+            findViewById<android.view.View>(R.id.tv_touch_hint).visibility = android.view.View.VISIBLE
+        }
+
+        val sw = findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_control_aa)
+        sw.isChecked = ButtonMode.isControlAa(this)
+        sw.setOnCheckedChangeListener { _, checked ->
+            ButtonMode.set(this, checked)
+            MediaButtonBridge.instance?.setCaptureActive(checked)
+            LogBus.log("→ handlebar buttons ${if (checked) "control Android Auto" else "control media"}")
+            if (checked &&
+                ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.RECORD_AUDIO), 71)
+            }
+        }
+        findViewById<MaterialButton>(R.id.btn_customize).setOnClickListener {
+            startActivity(Intent(this, ButtonMappingActivity::class.java))
+        }
+    }
+
     private fun setMapTheme(theme: MapTheme) {
         NightPrefs.setTheme(this, theme)
         AaVideoBridge.nightSink?.invoke(NightPrefs.isNightNow(this))
@@ -376,36 +376,6 @@ class SetupActivity : AppCompatActivity() {
         AppSettings.setAutoRecovery(this, on)
         refreshOptions()
         Toast.makeText(this, "Auto-recovery ${if (on) "on" else "off"}", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun setBtClock(on: Boolean) {
-        AppSettings.setBluetoothClockSync(this, on)
-        refreshOptions()
-        Toast.makeText(this, "Bluetooth clock ${if (on) "on" else "off"}", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun setClockLabPreset(preset: ClockLabPreset) {
-        AppSettings.applyClockLabPreset(this, preset)
-        refreshOptions()
-        Toast.makeText(this, "Clock lab: ${preset.name}", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun setClockLabQuery(mode: ClockQueryMode) {
-        AppSettings.setClockLabQuery(this, mode)
-        refreshOptions()
-        Toast.makeText(this, "QUERY_TIME: ${mode.id}", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun setClockLabTimeSync(mode: ClockTimeSyncMode) {
-        AppSettings.setClockLabTimeSync(this, mode)
-        refreshOptions()
-        Toast.makeText(this, "TIME_SYNC: ${mode.id}", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun setKeepWifi(on: Boolean) {
-        AppSettings.setKeepWifiAfterDisconnect(this, on)
-        refreshOptions()
-        Toast.makeText(this, "Keep bike Wi-Fi ${if (on) "on" else "off"}", Toast.LENGTH_SHORT).show()
     }
 
     private fun setLogTrips(on: Boolean) {
@@ -504,8 +474,6 @@ class SetupActivity : AppCompatActivity() {
             getString(R.string.setup_forcetouch_on_desc)
         else
             getString(R.string.setup_off_use_the_bike_profile_1000_mt_x_stays_focus_k)
-        val pov = ProfilePrefs.get(this)
-        profileDesc.text = "${pov.shortLabel} — ${getString(pov.detailRes)}"
 
         highlight(quality,
             R.id.quality_smooth to VideoQuality.SMOOTH,
@@ -562,26 +530,6 @@ class SetupActivity : AppCompatActivity() {
         highlight(AppSettings.autoRecovery(this),
             R.id.recovery_on to true,
             R.id.recovery_off to false)
-        highlight(AppSettings.bluetoothClockSync(this),
-            R.id.btclock_on to true,
-            R.id.btclock_off to false)
-        highlight(AppSettings.clockLabQuery(this),
-            R.id.clocklab_query_empty to ClockQueryMode.EMPTY,
-            R.id.clocklab_query_carbit to ClockQueryMode.CARBIT,
-            R.id.clocklab_query_zontes to ClockQueryMode.ZONTES,
-            R.id.clocklab_query_none to ClockQueryMode.NO_ACK)
-        highlight(AppSettings.clockLabTimeSync(this),
-            R.id.clocklab_sync_echo to ClockTimeSyncMode.ECHO,
-            R.id.clocklab_sync_phone to ClockTimeSyncMode.PHONE)
-        highlight(ClockLab.matchingPreset(),
-            R.id.clocklab_preset_latest to ClockLabPreset.LATEST,
-            R.id.clocklab_preset_2012 to ClockLabPreset.V2012,
-            R.id.clocklab_preset_zontes to ClockLabPreset.ZONTES,
-            R.id.clocklab_preset_phone to ClockLabPreset.PHONE_SYNC,
-            R.id.clocklab_preset_bt to ClockLabPreset.BT_LISTEN)
-        highlight(AppSettings.keepWifiAfterDisconnect(this),
-            R.id.keepwifi_on to true,
-            R.id.keepwifi_off to false)
         highlight(AppSettings.logTrips(this),
             R.id.logtrips_on to true,
             R.id.logtrips_off to false)
@@ -591,14 +539,6 @@ class SetupActivity : AppCompatActivity() {
         highlight(AppSettings.forceTouch(this),
             R.id.forcetouch_on to true,
             R.id.forcetouch_off to false)
-        highlight(ProfilePrefs.get(this),
-            R.id.profile_auto to ProfileOverride.AUTO,
-            R.id.profile_legacy to ProfileOverride.LEGACY,
-            R.id.profile_nk800 to ProfileOverride.NK800,
-            R.id.profile_800mt to ProfileOverride.CFDL26_LAND,
-            R.id.profile_1000mtx to ProfileOverride.CFDL26_PORT,
-            R.id.profile_nk_adv to ProfileOverride.NK_ADV,
-            R.id.profile_clc450 to ProfileOverride.CLC450)
         val transport = AppSettings.transport(this)
         findViewById<android.widget.TextView>(R.id.transport_desc).text = transport.label
         highlight(transport,
@@ -625,10 +565,10 @@ class SetupActivity : AppCompatActivity() {
 
     /** Paint the segment matching [selected] in brand color; the rest stay neutral tonal. */
     private fun <T> highlight(selected: T, vararg pairs: Pair<Int, T>) {
-        val onColor = ContextCompat.getColor(this, R.color.brand_orange)
-        val onText = ContextCompat.getColor(this, R.color.on_brand)
-        val offColor = ContextCompat.getColor(this, R.color.surface_high)
-        val offText = ContextCompat.getColor(this, R.color.text_primary)
+        val onColor = ContextCompat.getColor(this, R.color.home_cyan)
+        val onText = ContextCompat.getColor(this, R.color.white)
+        val offColor = ContextCompat.getColor(this, R.color.home_card_soft)
+        val offText = ContextCompat.getColor(this, R.color.home_text)
         for ((id, value) in pairs) {
             val btn = findViewById<MaterialButton>(id)
             val on = value == selected
@@ -646,13 +586,30 @@ class SetupActivity : AppCompatActivity() {
 
     private fun refresh() {
         val aaOk = SetupHelper.isAndroidAutoInstalled(this)
-        step1Title.text = tick(aaOk) + " " + getString(R.string.setup_1_android_auto)
+        step1Title.text = getString(R.string.setup_1_android_auto)
+        stepBadge(R.id.step1_badge, aaOk, "1")
         step1Btn.text = if (aaOk) getString(R.string.setup_open_android_auto) else getString(R.string.setup_install_android_auto)
 
         val permsOk = SetupHelper.permissionsGranted(this)
-        step2Title.text = tick(permsOk) + " " + getString(R.string.setup_2_permissions)
-        step2Btn.text = if (permsOk) getString(R.string.setup_all_granted) else getString(R.string.setup_grant_permissions)
+        step2Title.text = getString(R.string.setup_2_permissions)
+        stepBadge(R.id.step2_badge, permsOk, "2")
+        step2Btn.text = if (permsOk) tick(true) + " " + getString(R.string.setup_all_granted)
+            else getString(R.string.setup_grant_permissions)
         step2Btn.isEnabled = !permsOk
+        val mint = ContextCompat.getColor(this, R.color.home_mint)
+        step2Btn.setTextColor(if (permsOk) mint else ContextCompat.getColor(this, R.color.home_text))
+        step2Btn.backgroundTintList = ColorStateList.valueOf(
+            ContextCompat.getColor(this, if (permsOk) R.color.home_mint_soft else R.color.home_card))
+
+        val ready = aaOk && permsOk
+        val statusColor = ContextCompat.getColor(this, if (ready) R.color.home_mint else R.color.home_amber)
+        findViewById<TextView>(R.id.setup_status_text).apply {
+            text = getString(if (ready) R.string.setup_status_ready else R.string.setup_status_setup)
+            setTextColor(statusColor)
+        }
+        findViewById<android.view.View>(R.id.setup_status_dot).backgroundTintList = ColorStateList.valueOf(statusColor)
+        findViewById<android.view.View>(R.id.setup_status_pill).backgroundTintList = ColorStateList.valueOf(
+            ContextCompat.getColor(this, if (ready) R.color.home_mint_soft else R.color.home_cyan_soft))
 
         val resumeOk = SetupHelper.canAutoResume(this)
         resumeBtn.text = if (resumeOk) getString(R.string.setup_seamless_resume_enabled)
@@ -673,6 +630,21 @@ class SetupActivity : AppCompatActivity() {
                 startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
             } catch (_: Exception) {
                 Toast.makeText(this, getString(R.string.setup_overlay_permission_failed), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /** Numbered cyan badge, or a mint ring with a tick once the step is complete. */
+    private fun stepBadge(id: Int, done: Boolean, number: String) {
+        findViewById<TextView>(id).apply {
+            if (done) {
+                text = "✓"
+                setBackgroundResource(R.drawable.setup_badge_done)
+                setTextColor(ContextCompat.getColor(this@SetupActivity, R.color.home_mint))
+            } else {
+                text = number
+                setBackgroundResource(R.drawable.setup_badge_todo)
+                setTextColor(ContextCompat.getColor(this@SetupActivity, R.color.white))
             }
         }
     }

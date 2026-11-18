@@ -140,6 +140,7 @@ class EasyConnProber(
             stop()
         }
         probed = false
+        usbMode = false
         framesSent = 0
         lastFrameAt = 0L
         everConnected = false
@@ -228,6 +229,55 @@ class EasyConnProber(
         }
     }
 
+    /** True when started via [startLoopback] (USB car link): no Wi-Fi probing / reconnect probes. */
+    @Volatile private var usbMode = false
+
+    /**
+     * USB-car mode (Perodua / Carbit "Oversea"): the head unit reaches the PXC/media servers through
+     * an ADB-style USB tunnel that the phone side ([UsbAdbBridge]) relays to loopback sockets. So we
+     * only listen on 127.0.0.1:10920-10922 — no Wi-Fi join, no discovery, no mDNS probe; the car
+     * drives the handshake once its streams are connected.
+     */
+    fun startLoopback() {
+        if (running) {
+            log("[USB] already running — restarting")
+            stop()
+        }
+        probed = false
+        framesSent = 0
+        lastFrameAt = 0L
+        everConnected = false
+        reconnectAttempts = 0
+        liveConns.set(0)
+        network = null
+        usbMode = true
+        running = true
+        var conflict = false
+        val lo = java.net.InetAddress.getByName("127.0.0.1")
+        for (port in LISTEN_PORTS) {
+            try {
+                val ss = ServerSocket()
+                ss.reuseAddress = true
+                ss.bind(InetSocketAddress(lo, port), 50)
+                servers.add(ss)
+                spawnAccept(port, ss)
+            } catch (e: Exception) {
+                conflict = true
+                log("[USB] bind 127.0.0.1:$port failed: ${e.message}")
+            }
+        }
+        log("[USB] listening on 127.0.0.1 ports ${LISTEN_PORTS.toList()} (${servers.count { !it.isClosed }} open)")
+        if (conflict) {
+            log("[USB] !! link ports are held by another app/session — stop it and retry")
+            stop()
+            return
+        }
+        startHeartbeatLog()
+        stitchExec = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r ->
+            Thread(r, "ec-touch-stitch").apply { isDaemon = true }
+        }
+    }
+
     /**
      * Drop the current video source without closing PXC. Used when parking AA so 114 doesn't keep
      * polling a stopped shared pipeline (that looked like a stall and triggered forceReconnect).
@@ -295,6 +345,7 @@ class EasyConnProber(
 
     fun stop() {
         running = false
+        usbMode = false
         probed = false
         everConnected = false
         reprobing = false
@@ -618,7 +669,7 @@ class EasyConnProber(
      * capped, backed-off retry so a genuinely-gone bike doesn't spin forever.
      */
     private fun onAllConnectionsClosed() {
-        if (!running || !everConnected || reprobing) return
+        if (!running || !everConnected || reprobing || usbMode) return
         if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
             log("[reconnect] gave up after $reconnectAttempts attempts — tap Connect to retry")
             ConnectionState.set(Phase.ERROR, "lost bike link")

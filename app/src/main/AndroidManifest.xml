@@ -14,6 +14,7 @@
         android:usesPermissionFlags="neverForLocation"
         tools:targetApi="tiramisu" />
     <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
+    <uses-feature android:name="android.hardware.usb.accessory" android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Android 11 and earlier -->
     <uses-permission
@@ -108,6 +109,10 @@
         <activity
             android:name=".ButtonMappingActivity"
             android:exported="false" />
+        <!-- Debug test tool: fake dash on 127.0.0.1 (DummyBike). -->
+        <activity
+            android:name=".DummyDashActivity"
+            android:exported="false" />
         <activity
             android:name=".HudViewActivity"
             android:exported="false"
@@ -123,6 +128,19 @@
         <activity
             android:name=".AboutActivity"
             android:exported="false" />
+        <!-- EXPERIMENTAL: Perodua Smart Link / Carbit "Oversea" USB accessory probe (logs only). -->
+        <activity
+            android:name=".UsbProbeActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED"
+                android:resource="@xml/carbit_accessory_filter" />
+        </activity>
         <service
             android:name=".ProjectionService"
             android:exported="false"

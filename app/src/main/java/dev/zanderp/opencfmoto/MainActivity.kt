@@ -183,13 +183,17 @@ class MainActivity : AppCompatActivity() {
      *  and a fresh scan, so both paths behave identically. */
     private fun startAaFlow(qr: QrData) {
         try {
-            if (!WifiGate.ensureEnabledOrPrompt(this)) return
+            val dummy = DummyBike.isDummy(qr) || UsbCar.isUsb(qr)   // neither needs Wi‑Fi / Bluetooth
+            if (!dummy && !WifiGate.ensureEnabledOrPrompt(this)) return
             // AA Connect needs Nearby + Bluetooth so HUR (START_WIRELESS_PROJECTION) can run when
             // WirelessStartupActivity is a no-op (common on AA 16.4+/17.4+). Mirror/Map unchanged.
-            if (!ensureNearbyBtForAaConnect()) return
+            // The dummy bike (emulators, no BT) relies on the head-unit-server dial-out instead.
+            if (!dummy && !ensureNearbyBtForAaConnect()) return
+            if (!dummy) maybeWarnTftBluetoothAudio(qr)   // non-blocking: Connect carries on
             // Map / Mirror / stale PXC must die first — half-switches leave framesSent=0.
             tearDownForModeSwitch(clearMap = true, clearMirror = true)
             applyProfile(qr)
+            BikeProfileHolder.carUsbTouch = UsbCar.isUsb(qr)
             val bikeName = BikeMemory.lastBikeName(this) ?: qr.ssid
             ConnectionState.set(Phase.STARTING_AA, bikeName)
             log("→ starting Android Auto receiver (loopback self-mode). Ensure Android Auto is installed & set up.")
@@ -202,6 +206,7 @@ class MainActivity : AppCompatActivity() {
             BikeLink.beginHandoff(this)
             AaVideoBridge.onSteadyVideo = {
                 AaVideoBridge.onSteadyVideo = null
+                AndroidAutoService.markDevModeSeen(applicationContext)
                 ConnectionState.set(Phase.AA_VIDEO_LIVE)
                 LogBus.log("→ Android Auto video is live")
                 AndroidAutoService.upgradeForegroundForMicrophone()
@@ -272,6 +277,35 @@ class MainActivity : AppCompatActivity() {
      * Block AA Connect until Nearby (API 31+) is granted and Bluetooth is on — otherwise HUR
      * never runs and Activity/Receiver alone often leave SoftAP up with no AA on the phone.
      */
+    /**
+     * "TFT on Wi‑Fi only": Android Auto reaches the dash over Wi‑Fi, so the dash needs no Bluetooth
+     * audio. When it has it, it grabs music/Maps sound from the intercom and sets the phone's volume.
+     * Apps can't change another device's Bluetooth profiles, so point the rider at the switch.
+     * Android Auto's start still works with Bluetooth audio off — any paired device's MAC (the
+     * intercom) is enough for START_WIRELESS_PROJECTION.
+     */
+    private fun maybeWarnTftBluetoothAudio(qr: QrData) {
+        val prefs = getSharedPreferences("opencfmoto_home", MODE_PRIVATE)
+        if (prefs.getBoolean("tft_bt_audio_tip_off", false)) return
+        val names = listOfNotNull(qr.name, qr.ssid, BikeMemory.lastBikeName(this))
+        BluetoothHelper.tftAudioConnections(this, names) { tfts ->
+            runOnUiThread {
+                if (tfts.isEmpty() || isFinishing || isDestroyed) return@runOnUiThread
+                val tft = tfts.joinToString()
+                log("→ TFT '$tft' is on Bluetooth audio — suggesting Wi‑Fi only (Media audio + Calls off)")
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.tft_bt_audio_title)
+                    .setMessage(getString(R.string.tft_bt_audio_message, tft))
+                    .setPositiveButton(R.string.tft_bt_audio_open) { _, _ -> BluetoothHelper.openBluetoothSettings(this) }
+                    .setNeutralButton(R.string.tft_bt_audio_never) { _, _ ->
+                        prefs.edit().putBoolean("tft_bt_audio_tip_off", true).apply()
+                    }
+                    .setNegativeButton(R.string.tft_bt_audio_later, null)
+                    .show()
+            }
+        }
+    }
+
     private fun ensureNearbyBtForAaConnect(): Boolean {
         if (dev.zanderp.opencfmoto.aa.AaSelfMode.canAttemptHur(this)) return true
         val needNearby = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
@@ -415,6 +449,8 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+        window.decorView.post { if (!isFinishing) FollowDialog.showOnce(this) }
+
         logView = findViewById(R.id.log_view)
         logScroll = findViewById(R.id.log_scroll)
         logPanel = findViewById(R.id.log_panel)
@@ -424,14 +460,22 @@ class MainActivity : AppCompatActivity() {
         statusProgress = findViewById(R.id.status_progress)
         bikeView = findViewById(R.id.bike_view)
         connectBtn = findViewById(R.id.btn_connect)
+        findViewById<android.widget.SeekBar>(R.id.home_seek_volume)?.setOnSeekBarChangeListener(
+            object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: android.widget.SeekBar, progress: Int, fromUser: Boolean) {
+                    findViewById<TextView>(R.id.home_volume_value)?.text = progress.toString()
+                    if (fromUser) MediaButtonBridge.setVolume(this@MainActivity, progress)
+                }
+                override fun onStartTrackingTouch(seekBar: android.widget.SeekBar) {}
+                override fun onStopTrackingTouch(seekBar: android.widget.SeekBar) {}
+            },
+        )
         toggleLogBtn = findViewById(R.id.btn_toggle_log)
         logView.movementMethod = ScrollingMovementMethod()
 
         // Icons are set here rather than in XML: in this AGP/compileSdk setup, library (res-auto)
         // attributes like app:icon don't resolve in layouts, so we assign them programmatically.
-        (connectBtn as? MaterialButton)?.setIconResource(R.drawable.ic_power)
-        findViewById<android.widget.TextView>(R.id.brand_version).text =
-            "v${BuildConfig.VERSION_NAME}"
+        (connectBtn as? MaterialButton)?.setIconResource(R.drawable.ic_cast)
         // Scan / Map / Mirror: icon on top (Tile style). maxLines=1 + autoSize keeps labels
         // horizontal on narrow phones / large system font (Samsung S22 report).
         fun MaterialButton.asIconTopTile(iconRes: Int) {
@@ -441,32 +485,43 @@ class MainActivity : AppCompatActivity() {
             maxLines = 1
             isSingleLine = true
         }
-        (findViewById<View>(R.id.btn_aa_start) as? MaterialButton)?.asIconTopTile(R.drawable.ic_qr)
+        // Bottom dock: Dash view / Controls / Map / Mirror, icon above label.
+        (findViewById<View>(R.id.btn_hud_view) as? MaterialButton)?.asIconTopTile(R.drawable.ic_speed)
+        (findViewById<View>(R.id.btn_devices) as? MaterialButton)?.asIconTopTile(R.drawable.ic_devices)
         (findViewById<View>(R.id.btn_gpx) as? MaterialButton)?.asIconTopTile(R.drawable.ic_place)
         (findViewById<View>(R.id.btn_mirror_start) as? MaterialButton)?.asIconTopTile(R.drawable.ic_cast)
         (findViewById<View>(R.id.btn_aa_stop) as? MaterialButton)?.setIconResource(R.drawable.ic_stop)
-        (findViewById<View>(R.id.btn_hud_view) as? MaterialButton)?.apply {
-            setIconResource(R.drawable.ic_cast)
-            iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
-            maxLines = 1
+        // Pair TFT card "+ Scan QR" and field-guide utility buttons.
+        (findViewById<View>(R.id.btn_aa_start) as? MaterialButton)?.isSingleLine = true
+        (findViewById<View>(R.id.btn_about_page) as? MaterialButton)?.setIconResource(R.drawable.ic_info)
+        (findViewById<View>(R.id.btn_check_update) as? MaterialButton)?.setIconResource(R.drawable.ic_sync)
+        (findViewById<View>(R.id.btn_revamp_yz) as? MaterialButton)?.setIconResource(R.drawable.ic_about_heart)
+        (findViewById<View>(R.id.btn_donate) as? MaterialButton)?.setIconResource(R.drawable.ic_about_bolt)
+        // Light home screen → dark status / nav bar icons.
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
         }
-        (findViewById<View>(R.id.btn_controls) as? MaterialButton)?.apply {
-            setIconResource(R.drawable.ic_devices)
-            iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
-            maxLines = 1
+        findViewById<View>(R.id.btn_header_settings).setOnClickListener { SetupActivity.start(this) }
+        findViewById<View>(R.id.btn_header_about).setOnClickListener { AboutActivity.start(this) }
+        // Field guide is collapsed by default; "Quick help" expands it.
+        findViewById<TextView>(R.id.home_guide_toggle).setOnClickListener { toggle ->
+            val steps = findViewById<View>(R.id.home_guide_steps)
+            val show = steps.visibility != View.VISIBLE
+            steps.visibility = if (show) View.VISIBLE else View.GONE
+            (toggle as TextView).setText(if (show) R.string.home_guide_hide else R.string.home_guide_help)
         }
-        // Footer 2×2 — icon + label (same pattern as Dash view / Controls).
+        // Quick utility pills — icon + label.
         fun MaterialButton.asFooterLink(iconRes: Int) {
             setIconResource(iconRes)
             iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
-            iconPadding = (6 * resources.displayMetrics.density).toInt()
-            iconSize = (18 * resources.displayMetrics.density).toInt()
-            setIconTintResource(R.color.text_secondary)
+            iconPadding = (5 * resources.displayMetrics.density).toInt()
+            iconSize = (16 * resources.displayMetrics.density).toInt()
+            setIconTintResource(R.color.home_cyan)
             maxLines = 1
             isSingleLine = true
         }
-        (findViewById<View>(R.id.btn_setup) as? MaterialButton)?.asFooterLink(R.drawable.ic_settings)
-        (findViewById<View>(R.id.btn_devices) as? MaterialButton)?.asFooterLink(R.drawable.ic_devices)
+        (findViewById<View>(R.id.btn_controls) as? MaterialButton)?.asFooterLink(R.drawable.ic_devices)
         (findViewById<View>(R.id.btn_trip) as? MaterialButton)?.asFooterLink(R.drawable.ic_ride)
         (toggleLogBtn as? MaterialButton)?.asFooterLink(R.drawable.ic_logs)
 
@@ -511,6 +566,8 @@ class MainActivity : AppCompatActivity() {
         // fresh one here would orphan the running instance — leaking its sockets/threads and making
         // the Stop button operate on the wrong object. See [BikeLink].
         prober = BikeLink.prober ?: EasyConnProber(applicationContext, LogBus::log).also { BikeLink.prober = it }
+        // Launched from the USB probe screen: start Android Auto over the open USB car link.
+        logView.post { maybeStartFromUsbCar(intent) }
 
         // Android 13+: request notification permission up front so the mediaProjection
         // foreground-service notification can be posted (some setups gate the FGS on it).
@@ -534,23 +591,66 @@ class MainActivity : AppCompatActivity() {
                 log("→ Connect blocked — missing dependencies (see dialog)")
                 return@setOnClickListener
             }
-            val saved = BikeMemory.lastQr(this)
-            if (saved != null) {
-                log("→ Connect: reusing saved bike '${BikeMemory.lastBikeName(this)}' (no scan needed)")
-                ProjectionHolder.projection = null
-                GpxSession.clear()
-                ensureLocationPermission()
-                startAaFlow(saved)
-            } else {
-                log("→ Connect: no saved bike — scan the dash QR.")
-                startAaScan()
+            // Not ready: open the guide for the first red step (1 Permission, 2 Dev mode, 3 Head unit).
+            if (!permOk) {
+                showPermissionGuide()
+                return@setOnClickListener
             }
+            if (!devOn) {
+                showDevModeGuide()
+                return@setOnClickListener
+            }
+            if (!headUnitServerUp) {
+                showHeadUnitGuide()
+                return@setOnClickListener
+            }
+            doConnect()
         }
 
         findViewById<Button>(R.id.btn_aa_start).setOnClickListener { startAaScan() }
 
         findViewById<Button>(R.id.btn_mirror_start).setOnClickListener { onMirrorPressed() }
-        findViewById<View>(R.id.btn_gpx).setOnClickListener { onMapPressed() }
+        // Tap → Google Maps (what Android Auto shows on the dash); long-press → OpenCfMoto's own map hub.
+        findViewById<View>(R.id.btn_gpx).setOnClickListener {
+            log("→ Map: open Google Maps")
+            if (!NavLauncher.openMaps(this)) onMapPressed()
+        }
+        findViewById<View>(R.id.btn_gpx).setOnLongClickListener {
+            onMapPressed()
+            true
+        }
+        // Pull down on the home screen to refresh the status cards (head unit, destination, permissions).
+        findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.home_refresh)?.apply {
+            setColorSchemeColors(ContextCompat.getColor(this@MainActivity, R.color.home_cyan))
+            setOnRefreshListener {
+                refreshBikeLabel()
+                probeHeadUnitServer()
+                renderHome(ConnectionState.phase)
+                // Give the head unit probe a moment, then re-draw with its result.
+                postDelayed({
+                    if (!isFinishing) {
+                        renderHome(ConnectionState.phase)
+                        isRefreshing = false
+                    }
+                }, 700)
+            }
+        }
+        findViewById<View>(R.id.tel_perm_card)?.apply {
+            isClickable = true
+            setOnClickListener { showPermissionGuide() }
+        }
+        // Destination card: tap → Google Maps to pick a destination; long-press → our own map hub.
+        findViewById<View>(R.id.tel_dest_card)?.apply {
+            isClickable = true
+            setOnClickListener {
+                log("→ Destination card: open Google Maps")
+                if (!NavLauncher.openMaps(this@MainActivity)) onMapPressed()
+            }
+            setOnLongClickListener {
+                onMapPressed()
+                true
+            }
+        }
         findViewById<Button>(R.id.btn_aa_stop).setOnClickListener { stopEverything() }
 
         toggleLogBtn.setOnClickListener {
@@ -563,10 +663,45 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<View>(R.id.btn_hud_view).setOnClickListener { startActivity(Intent(this, HudViewActivity::class.java)) }
         findViewById<View>(R.id.btn_controls).setOnClickListener { startActivity(Intent(this, ControlsActivity::class.java)) }
-        findViewById<Button>(R.id.btn_navigate).setOnClickListener { navigateToTyped() }
+        findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.home_switch_free_volume)?.apply {
+            isChecked = ButtonPresencePrefs.freeVolume(this@MainActivity)
+            setOnCheckedChangeListener { _, on ->
+                ButtonPresencePrefs.setFreeVolume(this@MainActivity, on)
+                // Apply now if the bridge is running: unpin (on) or re-pin (off).
+                MediaButtonBridge.instance?.refreshVolumePresencePolicy()
+            }
+        }
+        findViewById<View>(R.id.btn_open_aa)?.setOnClickListener { openAndroidAuto() }
+        // Head unit card: tap → Android Auto (⋮ → Start/Stop head unit server lives there).
+        findViewById<View>(R.id.tel_unit_card)?.apply {
+            isClickable = true
+            // Red → the Start guide Connect shows; green → a Stop guide.
+            setOnClickListener {
+                if (headUnitServerUp) {
+                    HeadUnitDialog.showStop(this@MainActivity) { openAndroidAuto() }
+                } else {
+                    showHeadUnitGuide()
+                }
+            }
+        }
+        // Setup order, top-left → bottom-right: 1 Permission, 2 Dev mode, 3 Head unit, 4 Destination.
+        listOf(
+            R.id.tel_perm_label to R.string.home_tel_perm,
+            R.id.tel_dev_label to R.string.home_tel_dev,
+            R.id.tel_unit_label to R.string.home_tel_unit,
+            R.id.tel_dest_label to R.string.home_tel_dest,
+        ).forEachIndexed { i, (id, res) ->
+            findViewById<TextView>(id)?.text = "${i + 1}  ${getString(res)}"
+        }
+        findViewById<View>(R.id.tel_dev_card)?.apply {
+            isClickable = true
+            setOnClickListener { showDevModeGuide() }
+        }
+        // Search bar button (and keyboard Go) → Google Maps search with what was typed.
+        findViewById<Button>(R.id.btn_navigate).setOnClickListener { searchTypedInMaps() }
         val destField = findViewById<android.widget.EditText>(R.id.et_destination)
         destField?.setOnEditorActionListener { _, _, _ ->
-            navigateToTyped(); true
+            searchTypedInMaps(); true
         }
         // Bike Search tap → focus this field + show the phone keyboard (Presentation has no IME).
         DashRemote.setTypeOnPhoneHandler {
@@ -631,15 +766,34 @@ class MainActivity : AppCompatActivity() {
         })
         findViewById<View>(R.id.btn_devices).setOnClickListener { GarageActivity.start(this) }
 
-        findViewById<View>(R.id.btn_trip).setOnClickListener { TripActivity.start(this) }
+        findViewById<View>(R.id.btn_trip).setOnClickListener { TripsListActivity.start(this) }
 
         findViewById<Button>(R.id.btn_share_log).setOnClickListener { shareLog() }
 
-        findViewById<Button>(R.id.btn_setup).setOnClickListener { SetupActivity.start(this) }
-        findViewById<View>(R.id.brand_title).setOnClickListener { AboutActivity.start(this) }
+        setupHeroPager()
+        findViewById<android.widget.ImageView>(R.id.brand_logo).apply {
+            setOnClickListener { GarageActivity.start(this@MainActivity) }
+            try {
+                val drawable = android.graphics.ImageDecoder.decodeDrawable(
+                    android.graphics.ImageDecoder.createSource(resources, R.raw.home_logo_675),
+                )
+                setImageDrawable(drawable)
+                (drawable as? android.graphics.drawable.AnimatedImageDrawable)?.apply {
+                    repeatCount = android.graphics.drawable.AnimatedImageDrawable.REPEAT_INFINITE
+                    start()
+                }
+            } catch (e: Exception) {
+                log("logo gif failed: $e")
+            }
+        }
         findViewById<View>(R.id.btn_about_page).setOnClickListener { AboutActivity.start(this) }
         findViewById<View>(R.id.btn_check_update).setOnClickListener { checkUpdateManual() }
-        findViewById<View>(R.id.btn_problem_report).setOnClickListener { reportProblem() }
+        findViewById<View>(R.id.btn_revamp_yz).setOnClickListener {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/@yzrn94")))
+            } catch (_: Exception) {
+            }
+        }
         findViewById<View>(R.id.btn_donate).setOnClickListener {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(AboutActivity.URL_KOFI)))
@@ -657,10 +811,11 @@ class MainActivity : AppCompatActivity() {
 
         log("Ready. Tap Connect to project Android Auto to your dash.")
 
-        // First launch: walk the user through the one-time prerequisites.
+        // Always open on the home screen — Setup is reachable from the Setup button / ⚙ gear, and the
+        // Connect flow still prompts for anything missing. Mark it seen so auto-connect isn't held back.
         try {
-            if (!SetupActivity.hasSeen(this)) SetupActivity.start(this)
-            else maybeAutoConnect()
+            if (!SetupActivity.hasSeen(this)) SetupActivity.markSeen(this)
+            maybeAutoConnect()
             maybeResumeFromParked(intent)
             maybeStartFromBtTrigger(intent)
         } catch (e: Exception) {
@@ -669,8 +824,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Live trip stats → hero speed page while the home screen is in front. */
+    private val heroStatsListener: (TripRecorder.Stats) -> Unit = { s -> runOnUiThread { renderHeroSpeed(s) } }
+
     override fun onPause() {
         CrashGuard.persistSession(this)
+        TripLogger.get(this).let { if (it.onStats === heroStatsListener) it.onStats = null }
         super.onPause()
     }
 
@@ -679,10 +838,32 @@ class MainActivity : AppCompatActivity() {
         setIntent(intent)
         maybeResumeFromParked(intent)
         maybeStartFromBtTrigger(intent)
+        maybeStartFromUsbCar(intent)
         if (intent.getBooleanExtra(EXTRA_START_GPX, false)) {
             intent.removeExtra(EXTRA_START_GPX)
             beginGpxProjection()
         }
+    }
+
+    /** Re-render the Destination card the moment Google Maps starts/stops navigating. */
+    private val gmapsListener: (GmapsNav.Turn?) -> Unit = {
+        runOnUiThread { if (!isFinishing) renderHome(ConnectionState.phase) }
+    }
+
+    private val aaNavListener: () -> Unit = {
+        runOnUiThread { if (!isFinishing) renderHome(ConnectionState.phase) }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        GmapsNav.addListener(gmapsListener)
+        dev.zanderp.opencfmoto.aa.AaNavState.addListener(aaNavListener)
+    }
+
+    override fun onStop() {
+        GmapsNav.removeListener(gmapsListener)
+        dev.zanderp.opencfmoto.aa.AaNavState.removeListener(aaNavListener)
+        super.onStop()
     }
 
     override fun onResume() {
@@ -691,12 +872,16 @@ class MainActivity : AppCompatActivity() {
         // the Connect button.
         refreshBikeLabel()
         renderStatus(ConnectionState.phase, ConnectionState.detail)
+        TripLogger.get(this).let { it.onStats = heroStatsListener; renderHeroSpeed(it.snapshot()) }
+        logView.removeCallbacks(homeTick)
+        logView.postDelayed(homeTick, 30_000L)
         if (WifiGate.isWifiEnabled(this)) WifiGate.cancelNotification(this)
         // Retry auto-connect on resume: after finishing first-run setup, or once the bike's Wi-Fi
         // comes into range shortly after launch. Guarded so it only ever starts one attempt.
         if (SetupActivity.hasSeen(this)) maybeAutoConnect()
         maybeCheckUpdate()
         maybeResumeFromParked(intent)
+        resumeConnectIfHeadUnitUp()
     }
 
     /**
@@ -718,6 +903,21 @@ class MainActivity : AppCompatActivity() {
         ProjectionHolder.projection = null
         ensureLocationPermission()
         startAaFlow(saved)
+    }
+
+    /** USB car (Perodua etc.): the probe screen asked us to start Android Auto over its USB link. */
+    private fun maybeStartFromUsbCar(intent: Intent?) {
+        if (intent?.getBooleanExtra(UsbCar.EXTRA_START, false) != true) return
+        intent.removeExtra(UsbCar.EXTRA_START)
+        if (!UsbCarLink.isOpen) {
+            log("→ USB car: no USB link yet — getting Android Auto ready first; the car link attaches when you press Detect Phone")
+        }
+        val qr = UsbCar.ensureSelected(this) ?: return
+        log("→ USB car: starting Android Auto over the USB link")
+        autoConnectStarted = true
+        ProjectionHolder.projection = null
+        refreshBikeLabel()
+        startAaFlow(qr)
     }
 
     /** Helmet remote / watch ACL → same one-tap Connect as a saved-QR tap. */
@@ -808,6 +1008,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        heroPulse?.cancel()
+        heroPulse = null
         DashRemote.setTypeOnPhoneHandler(null)
         LogBus.listener = null
         ConnectionState.listener = null
@@ -834,6 +1036,51 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Launch the QR scanner for the Android Auto path (profile is chosen from the scan result). */
+    /** Set when we sent the rider to Android Auto to start the head unit server; Connect resumes on return. */
+    private var awaitingHeadUnit = false
+
+    private fun doConnect() {
+        val saved = BikeMemory.lastQr(this)
+        if (saved != null) {
+            log("→ Connect: reusing saved bike '${BikeMemory.lastBikeName(this)}' (no scan needed)")
+            ProjectionHolder.projection = null
+            GpxSession.clear()
+            ensureLocationPermission()
+            startAaFlow(saved)
+        } else {
+            log("→ Connect: no saved bike — scan the dash QR.")
+            startAaScan()
+        }
+    }
+
+    /** Back from Android Auto: if the head unit server is now listening, carry on with Connect. */
+    private fun resumeConnectIfHeadUnitUp() {
+        if (!awaitingHeadUnit) return
+        awaitingHeadUnit = false
+        Thread {
+            val up = try {
+                java.net.ServerSocket().use {
+                    it.reuseAddress = true
+                    it.bind(java.net.InetSocketAddress("127.0.0.1", dev.zanderp.opencfmoto.aa.AaReceiver.HEADUNIT_SERVER_PORT))
+                }
+                false
+            } catch (_: java.net.BindException) {
+                true
+            } catch (_: Exception) {
+                false
+            }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (up) {
+                    headUnitServerUp = true
+                    doConnect()
+                } else {
+                    Toast.makeText(this, R.string.home_hus_still_off, Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
+    }
+
     private fun startAaScan() {
         if (DependencyPrompt.showForConnect(this, forScan = true)) {
             log("→ Scan blocked — missing dependencies (see dialog)")
@@ -874,7 +1121,7 @@ class MainActivity : AppCompatActivity() {
             else -> if (phase.busy) ContextCompat.getColor(this, R.color.status_busy)
                     else ContextCompat.getColor(this, R.color.status_idle)
         }
-        statusView.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
+        statusView.setTextColor(ContextCompat.getColor(this, R.color.home_text))
         statusIcon.setColorFilter(color)
         statusProgress.visibility = if (phase.busy) View.VISIBLE else View.GONE
 
@@ -895,21 +1142,498 @@ class MainActivity : AppCompatActivity() {
         } else {
             vpnPromptShown = false
         }
-        connectBtn.text = when {
-            phase.busy -> getString(R.string.main_stop)
-            phase == Phase.STREAMING || phase == Phase.MIRRORING -> getString(R.string.main_stop)
-            BikeMemory.hasSaved(this) ->
-                getString(R.string.main_connect_to, BikeMemory.lastBikeName(this) ?: "")
-            else -> getString(R.string.main_connect)
-        }
+        connectBtn.text = connectLabel(phase)
         (connectBtn as? MaterialButton)?.setIconResource(
             if (phase.busy || phase == Phase.STREAMING || phase == Phase.MIRRORING) {
                 R.drawable.ic_stop
             } else {
-                R.drawable.ic_power
+                R.drawable.ic_cast
             },
         )
         updateButtonStates(phase)
+        renderHome(phase)
+    }
+
+    /**
+     * Home-screen chrome that mirrors [ConnectionState]: header title + status line, status pill,
+     * Connect colour, dock highlight and the glance tiles. Everything shown here is real data — the
+     * bike doesn't report battery voltage or headlight state over this link, so the battery tile
+     * shows the phone's own battery. To feed new live values (e.g. bike telemetry), extend
+     * [HomeTelemetry] and set them here.
+     */
+    /** Status pill: error / live / linking win; otherwise "Not ready" (red) until steps 1–3 are green. */
+    private fun applyStatusBadge(phase: Phase) {
+        val live = phase == Phase.STREAMING || phase == Phase.MIRRORING
+        val saved = BikeMemory.hasSaved(this)
+        val ready = permOk && devOn && unitOnline
+        applyHeroTint()
+        val (badgeRes, badgeColorRes) = when {
+            phase == Phase.ERROR -> R.string.home_badge_error to R.color.home_red
+            live -> R.string.home_badge_live to R.color.home_mint
+            phase.busy -> R.string.home_badge_linking to R.color.home_amber
+            !ready -> R.string.home_badge_not_ready to R.color.home_red
+            saved -> R.string.home_badge_paired to R.color.home_mint
+            else -> R.string.home_badge_ready to R.color.home_cyan
+        }
+        val badgeColor = ContextCompat.getColor(this, badgeColorRes)
+        findViewById<TextView>(R.id.home_status_badge)?.apply {
+            setText(badgeRes)
+            setTextColor(badgeColor)
+        }
+        val tint = android.content.res.ColorStateList.valueOf(badgeColor)
+        findViewById<View>(R.id.home_status_dot)?.backgroundTintList = tint
+        // Pill background = the badge colour at ~15% opacity.
+        findViewById<View>(R.id.home_status_badge_wrap)?.backgroundTintList =
+            android.content.res.ColorStateList.valueOf((badgeColor and 0x00FFFFFF) or 0x26000000)
+    }
+
+    private fun renderHome(phase: Phase) {
+        val live = phase == Phase.STREAMING || phase == Phase.MIRRORING
+        if (live) lastLiveAt = System.currentTimeMillis()
+        applyStatusBadge(phase)
+
+
+        // Connect & Launch: cyan when ready, red while it acts as Stop.
+        applyConnectBackground(phase)
+
+        // Dock: highlight the tab that matches what the dash is showing right now.
+        val activeDock = when {
+            phase == Phase.MIRRORING -> R.id.btn_mirror_start
+            GpxSession.active -> R.id.btn_gpx
+            else -> 0
+        }
+        val cyan = ContextCompat.getColor(this, R.color.home_cyan)
+        val idle = ContextCompat.getColor(this, R.color.home_text_2)
+        for (id in intArrayOf(R.id.btn_hud_view, R.id.btn_devices, R.id.btn_gpx, R.id.btn_mirror_start)) {
+            (findViewById<View>(id) as? MaterialButton)?.apply {
+                val on = id == activeDock
+                backgroundTintList = android.content.res.ColorStateList.valueOf(
+                    if (on) ContextCompat.getColor(context, R.color.home_cyan_soft) else android.graphics.Color.TRANSPARENT,
+                )
+                setTextColor(if (on) cyan else idle)
+                iconTint = android.content.res.ColorStateList.valueOf(if (on) cyan else idle)
+            }
+        }
+
+        renderTelemetry(
+            HomeTelemetry(
+                phoneBatteryPct = phoneBatteryPct(),
+                linkRes = when (phase) {
+                    Phase.STREAMING, Phase.STARTING_AA, Phase.AA_VIDEO_LIVE -> R.string.home_link_aa
+                    Phase.MIRRORING -> R.string.home_link_mirror
+                    Phase.JOINING_WIFI, Phase.PXC_CONNECTING, Phase.RECONNECTING,
+                    Phase.WAITING_FOR_BIKE -> R.string.home_link_wifi
+                    else -> R.string.home_link_off
+                },
+                lastSyncAt = lastLiveAt,
+                live = live,
+            ),
+        )
+    }
+
+    /** Values for the telemetry mini-grid; hook a real state provider in by building one of these. */
+    private data class HomeTelemetry(
+        val phoneBatteryPct: Int?,
+        @androidx.annotation.StringRes val linkRes: Int,
+        val lastSyncAt: Long,
+        val live: Boolean,
+    )
+
+    private fun renderTelemetry(t: HomeTelemetry) {
+        renderPermissions()
+        findViewById<android.widget.SeekBar>(R.id.home_seek_volume)?.let { seek ->
+            // Don't fight the rider's finger while they drag.
+            if (!seek.isPressed) {
+                val (now, max) = MediaButtonBridge.volumeLevels(this)
+                if (seek.max != max) seek.max = max
+                seek.progress = now
+            }
+        }
+        // Destination: set (green) when our map has one or Google Maps is actively navigating.
+        val destSet = (dev.zanderp.opencfmoto.aa.AaNavState.active && AaVideoBridge.pipeline != null) ||
+            GpxSession.destination != null || GmapsNav.current != null
+        val destBg = ContextCompat.getColor(this, if (destSet) R.color.home_mint else R.color.home_red)
+        val destFg = android.graphics.Color.WHITE
+        findViewById<View>(R.id.tel_dest_card)?.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = resources.displayMetrics.density * 18f
+            setColor(destBg)
+        }
+        findViewById<TextView>(R.id.tel_phone)?.apply {
+            text = getString(if (destSet) R.string.home_dest_set else R.string.home_dest_unset)
+            setTextColor(destFg)
+        }
+        findViewById<TextView>(R.id.tel_dest_label)?.setTextColor(destFg)
+        findViewById<android.widget.ImageView>(R.id.tel_dest_icon)?.imageTintList =
+            android.content.res.ColorStateList.valueOf(destFg)
+        // Head unit status = Android Auto's "head unit server" (the one behind ⋮ → Start/Stop head
+        // unit server) is listening. Only a LIVE AA session also counts — "Starting Android Auto…"
+        // proves nothing (pressing Connect used to turn this green with the server off). The bind
+        // probe never touches AA, so it is safe to run in every phase.
+        val aaLive = ConnectionState.phase.let { it == Phase.STREAMING || it == Phase.AA_VIDEO_LIVE }
+        probeHeadUnitServer()
+        val online = aaLive || headUnitServerUp
+        // Card background goes green (black text) or red (white text).
+        val bg = ContextCompat.getColor(this, if (online) R.color.home_mint else R.color.home_red)
+        val fg = android.graphics.Color.WHITE
+        findViewById<View>(R.id.tel_unit_card)?.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = resources.displayMetrics.density * 18f
+            setColor(bg)
+        }
+        findViewById<TextView>(R.id.tel_sync)?.apply {
+            text = getString(if (online) R.string.home_unit_online else R.string.home_unit_offline)
+            setTextColor(fg)
+        }
+        findViewById<TextView>(R.id.tel_unit_label)?.setTextColor(fg)
+        findViewById<android.widget.ImageView>(R.id.tel_unit_dot)?.imageTintList =
+            android.content.res.ColorStateList.valueOf(fg)
+        renderDevMode(online)
+        unitOnline = online
+        refreshReady()
+    }
+
+    /** Step 1: red → animated guide, then the real permission prompts; green → app settings as before. */
+    private fun showPermissionGuide() {
+        if (permOk) {
+            onPermissionCardTapped()
+        } else {
+            HeadUnitDialog.showPermission(this) { onPermissionCardTapped() }
+        }
+    }
+
+    /** "Head unit server is off" popup; on return from Android Auto, Connect continues if it's running. */
+    private fun showHeadUnitGuide() {
+        HeadUnitDialog.show(this) {
+            awaitingHeadUnit = true
+            openAndroidAuto()
+        }
+    }
+
+    /** Dev-mode tutorial popup with a switch for riders who already turned developer mode on. */
+    private fun showDevModeGuide() {
+        HeadUnitDialog.showDevMode(
+            this,
+            alreadyOn = devOn,
+            onToggle = { on ->
+                getSharedPreferences("home_prefs", MODE_PRIVATE).edit().putBoolean("aa_dev_mode_seen", on).apply()
+                renderDevMode(unitOnline && on)
+                refreshReady()
+            },
+            onOpenAndroidAuto = { openAndroidAuto() },
+        )
+    }
+
+    private var permOk = false
+    private var devOn = false
+    private var unitOnline = false
+
+    /** Steps 1–3 (permission, dev mode, head unit) all green → Connect button says "Ready to connect". */
+    private fun refreshReady() {
+        if (!::connectBtn.isInitialized) return
+        connectBtn.text = connectLabel(ConnectionState.phase)
+        applyConnectBackground(ConnectionState.phase)
+        applyStatusBadge(ConnectionState.phase)
+    }
+
+    /** Cyan when ready to connect; red while acting as Stop or while setup steps 1–3 aren't all green. */
+    private fun applyConnectBackground(phase: Phase) {
+        val stopping = phase.busy || phase == Phase.STREAMING || phase == Phase.MIRRORING
+        val ready = permOk && devOn && unitOnline
+        (connectBtn as? MaterialButton)?.apply {
+            backgroundTintList = null
+            setBackgroundResource(
+                if (stopping || !ready) R.drawable.home_cta_stop else R.drawable.home_cta_gradient,
+            )
+        }
+    }
+
+    private fun connectLabel(phase: Phase): CharSequence {
+        val stopping = phase.busy || phase == Phase.STREAMING || phase == Phase.MIRRORING
+        val base = when {
+            stopping -> getString(R.string.main_stop)
+            BikeMemory.hasSaved(this) ->
+                getString(R.string.main_connect_to, BikeMemory.lastBikeName(this) ?: "")
+            else -> getString(R.string.home_connect_launch)
+        }
+        if (stopping) return base
+        // Second, smaller line inside the button: ready when setup steps 1–3 are all green.
+        connectBtn.isSingleLine = false
+        connectBtn.maxLines = 2
+        val sub = getString(if (permOk && devOn && unitOnline) R.string.home_ready else R.string.home_not_ready)
+        return android.text.SpannableStringBuilder(base).apply {
+            append('\n')
+            val start = length
+            append(sub)
+            setSpan(android.text.style.RelativeSizeSpan(0.75f), start, length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    /**
+     * Android Auto keeps its developer-mode flag private, so it can't be read directly. The head unit
+     * server menu only exists with developer mode on, so a listening server proves it; we remember that.
+     */
+    private fun renderDevMode(serverUp: Boolean) {
+        val prefs = getSharedPreferences("home_prefs", MODE_PRIVATE)
+        if (serverUp && !prefs.getBoolean("aa_dev_mode_seen", false)) {
+            prefs.edit().putBoolean("aa_dev_mode_seen", true).apply()
+        }
+        val on = prefs.getBoolean("aa_dev_mode_seen", false)
+        devOn = on
+        val bg = ContextCompat.getColor(this, if (on) R.color.home_mint else R.color.home_red)
+        val fg = android.graphics.Color.WHITE
+        findViewById<View>(R.id.tel_dev_card)?.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = resources.displayMetrics.density * 18f
+            setColor(bg)
+        }
+        findViewById<TextView>(R.id.tel_dev_value)?.apply {
+            text = getString(if (on) R.string.home_dev_on else R.string.home_dev_unknown)
+            setTextColor(fg)
+        }
+        findViewById<TextView>(R.id.tel_dev_label)?.setTextColor(fg)
+        findViewById<android.widget.ImageView>(R.id.tel_dev_icon)?.imageTintList =
+            android.content.res.ColorStateList.valueOf(fg)
+    }
+
+    private fun openAndroidAuto() {
+        // Android 10+ ships Android Auto without a launcher icon, so try its settings screen first
+        // (that's where the Version-tap → ⋮ → head unit server menu lives), then a launcher intent.
+        val pkg = "com.google.android.projection.gearhead"
+        val attempts = listOf(
+            { Intent("android.settings.ANDROID_AUTO_SETTINGS").setPackage(pkg) },
+            {
+                Intent(Intent.ACTION_MAIN).setClassName(
+                    pkg, "com.google.android.projection.gearhead.companion.settings.DefaultSettingsActivity",
+                )
+            },
+            { packageManager.getLaunchIntentForPackage(pkg) ?: throw IllegalStateException("no launcher") },
+        )
+        for (build in attempts) {
+            try {
+                startActivity(build())
+                return
+            } catch (_: Exception) {
+            }
+        }
+        Toast.makeText(this, R.string.home_open_android_auto_missing, Toast.LENGTH_SHORT).show()
+    }
+
+    /** Home hero photo variants; tapping the photo cycles through them (choice is remembered). */
+    private val bikePhotos = intArrayOf(R.drawable.home_bike_photo, R.drawable.home_bike_photo_srr)
+    private val bikePhotoNames = arrayOf("675NK", "675SR-R")
+
+    /** Speed page of the home hero (null until [setupHeroPager]). */
+    private var heroSpeedPage: View? = null
+
+    /**
+     * Home hero is a 2-page swipe: the bike photo, then live trip speed from the shared
+     * [TripRecorder] (same numbers as the Trip page). Tapping the speed page opens the Trip page.
+     */
+    private fun setupHeroPager() {
+        val pager = findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.home_hero_pager) ?: return
+        val photo = android.widget.ImageView(this).apply {
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            setPadding(0, 0, 0, (16 * resources.displayMetrics.density).toInt())
+            isClickable = true
+            isFocusable = true
+        }
+        setupBikePhoto(photo)
+        val speed = layoutInflater.inflate(R.layout.home_hero_speed, pager, false)
+        speed.setOnClickListener { TripActivity.start(this) }
+        heroSpeedPage = speed
+        val pages = listOf<View>(photo, speed)
+
+        pager.offscreenPageLimit = 1
+        pager.adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<androidx.recyclerview.widget.RecyclerView.ViewHolder>() {
+            override fun getItemCount() = pages.size
+            override fun getItemViewType(position: Int) = position
+            override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int) =
+                object : androidx.recyclerview.widget.RecyclerView.ViewHolder(
+                    pages[viewType].also { v ->
+                        (v.parent as? android.view.ViewGroup)?.removeView(v)
+                        v.layoutParams = android.view.ViewGroup.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        )
+                    },
+                ) {}
+            override fun onBindViewHolder(holder: androidx.recyclerview.widget.RecyclerView.ViewHolder, position: Int) {}
+        }
+
+        // Page dots.
+        val dots = findViewById<android.widget.LinearLayout>(R.id.home_hero_dots)
+        val d = resources.displayMetrics.density
+        val dotViews = pages.map {
+            View(this).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams((6 * d).toInt(), (6 * d).toInt())
+                    .apply { marginStart = (3 * d).toInt(); marginEnd = (3 * d).toInt() }
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                }
+            }.also { dots?.addView(it) }
+        }
+        fun paintDots(sel: Int) = dotViews.forEachIndexed { i, v ->
+            (v.background as android.graphics.drawable.GradientDrawable).setColor(
+                ContextCompat.getColor(this, if (i == sel) R.color.home_cyan else R.color.home_border),
+            )
+        }
+        paintDots(0)
+        pager.registerOnPageChangeCallback(object : androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                paintDots(position)
+                if (position == 1) renderHeroSpeed(TripLogger.get(this@MainActivity).snapshot())
+            }
+        })
+        renderHeroSpeed(TripLogger.get(this).snapshot())
+    }
+
+    /** Live trip numbers on the hero's speed page (same maths as [TripActivity]). */
+    private fun renderHeroSpeed(s: TripRecorder.Stats) {
+        val page = heroSpeedPage ?: return
+        page.findViewById<TextView>(R.id.home_speed).text = s.speedKmh.toString()
+        page.findViewById<TextView>(R.id.home_speed_gps).text = when {
+            !s.recording -> "Not recording — tap to open Trip"
+            !s.hasFix -> getString(R.string.trip_waiting_for_gps)
+            else -> "GPS fix" + if (s.accuracyM > 0) " ±${s.accuracyM}m" else ""
+        }
+        page.findViewById<TextView>(R.id.home_speed_distance).text =
+            String.format(java.util.Locale.US, "%.2f km", s.distanceMeters / 1000.0)
+        val sec = s.movingTimeMs.coerceAtLeast(0) / 1000
+        page.findViewById<TextView>(R.id.home_speed_duration).text =
+            String.format(java.util.Locale.US, "%02d:%02d:%02d", sec / 3600, (sec % 3600) / 60, sec % 60)
+        page.findViewById<TextView>(R.id.home_speed_max).text = "${(s.maxSpeedMs * 3.6f).toInt()} km/h"
+        val avg = if (s.movingTimeMs > 0) (s.distanceMeters / (s.movingTimeMs / 1000.0)) * 3.6 else 0.0
+        page.findViewById<TextView>(R.id.home_speed_avg).text = "${avg.toInt()} km/h"
+    }
+
+    private var heroPhoto: android.widget.ImageView? = null
+
+    /** Red wash over the bike photo while setup steps 1–3 aren't all green (transparent pixels stay clear). */
+    private fun applyHeroTint() {
+        val ready = permOk && devOn && unitOnline
+        if (ready) {
+            heroPulse?.cancel()
+            heroPulse = null
+            heroPhoto?.colorFilter = null
+            return
+        }
+        if (heroPulse?.isRunning == true) return
+        // Pulse the red wash in and out (≈ 12% ↔ 45% opacity) until the setup steps are green.
+        heroPulse = android.animation.ValueAnimator.ofInt(0x20, 0x73).apply {
+            duration = 900L
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            addUpdateListener {
+                val a = it.animatedValue as Int
+                heroPhoto?.colorFilter = android.graphics.PorterDuffColorFilter(
+                    (a shl 24) or 0x00EF4444, android.graphics.PorterDuff.Mode.SRC_ATOP,
+                )
+            }
+            start()
+        }
+    }
+
+    private var heroPulse: android.animation.ValueAnimator? = null
+
+    private fun setupBikePhoto(photo: android.widget.ImageView) {
+        heroPhoto = photo
+        applyHeroTint()
+        val prefs = getSharedPreferences("opencfmoto_home", MODE_PRIVATE)
+        var index = prefs.getInt("bike_photo", 0).coerceIn(0, bikePhotos.lastIndex)
+        photo.setImageResource(bikePhotos[index])
+        photo.contentDescription = bikePhotoNames[index]
+        photo.setOnClickListener {
+            index = (index + 1) % bikePhotos.size
+            prefs.edit().putInt("bike_photo", index).apply()
+            photo.animate().cancel()
+            photo.animate().alpha(0f).setDuration(120).withEndAction {
+                photo.setImageResource(bikePhotos[index])
+                photo.contentDescription = bikePhotoNames[index]
+                photo.animate().alpha(1f).setDuration(180).start()
+            }.start()
+        }
+    }
+
+    @Volatile private var headUnitServerUp = false
+    @Volatile private var probingServer = false
+
+    /**
+     * Is Android Auto's head unit server listening? Updates the tile when it flips.
+     *
+     * Never CONNECT to find out: AA's developer head unit server serves one connection, and a
+     * connection that closes without the AAP handshake leaves it never accepting again (until it is
+     * stopped/started in AA) — every real session then hangs on "Starting Android Auto…". Instead try
+     * to BIND the port: "address in use" means AA is listening; success means it isn't (closed at once).
+     */
+    private fun probeHeadUnitServer() {
+        if (probingServer) return
+        probingServer = true
+        Thread {
+            val up = try {
+                java.net.ServerSocket().use {
+                    // Ignore TIME_WAIT leftovers; a LISTENing socket still blocks the bind.
+                    it.reuseAddress = true
+                    it.bind(
+                        java.net.InetSocketAddress("127.0.0.1", dev.zanderp.opencfmoto.aa.AaReceiver.HEADUNIT_SERVER_PORT),
+                    )
+                }
+                false
+            } catch (_: java.net.BindException) {
+                true
+            } catch (_: Exception) {
+                headUnitServerUp
+            }
+            probingServer = false
+            if (up != headUnitServerUp) {
+                headUnitServerUp = up
+                runOnUiThread { if (!isFinishing) renderHome(ConnectionState.phase) }
+            }
+        }.start()
+    }
+
+    /** Permission card: green when every permission the app asks for is granted, red otherwise. */
+    private fun renderPermissions() {
+        val ok = SetupHelper.permissionsGranted(this)
+        permOk = ok
+        refreshReady()
+        val bg = ContextCompat.getColor(this, if (ok) R.color.home_mint else R.color.home_red)
+        val fg = android.graphics.Color.WHITE
+        findViewById<View>(R.id.tel_perm_card)?.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = resources.displayMetrics.density * 18f
+            setColor(bg)
+        }
+        findViewById<TextView>(R.id.tel_top_speed)?.apply {
+            text = getString(if (ok) R.string.home_perm_ok else R.string.home_perm_missing)
+            setTextColor(fg)
+        }
+        findViewById<TextView>(R.id.tel_perm_label)?.setTextColor(fg)
+        findViewById<android.widget.ImageView>(R.id.tel_perm_icon)?.imageTintList =
+            android.content.res.ColorStateList.valueOf(fg)
+    }
+
+    private fun phoneBatteryPct(): Int? = try {
+        val bm = getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+        bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)?.takeIf { it in 0..100 }
+    } catch (_: Exception) {
+        null
+    }
+
+    /** Soft breathing pulse for the header link dot while linking / live. */
+    private fun pulse(v: View) {
+        v.animate().alpha(0.35f).setDuration(700).withEndAction {
+            v.animate().alpha(1f).setDuration(700).withEndAction {
+                val p = ConnectionState.phase
+                if (v.isAttachedToWindow && (p.busy || p == Phase.STREAMING || p == Phase.MIRRORING)) pulse(v)
+            }.start()
+        }.start()
+    }
+
+    /** Refresh "Last sync" / battery while the home screen is visible. */
+    private val homeTick = object : Runnable {
+        override fun run() {
+            if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
+            renderHome(ConnectionState.phase)
+            logView.postDelayed(this, 30_000L)
+        }
     }
 
     /** Enable actions that make sense in the current [phase]. */
@@ -1027,6 +1751,81 @@ class MainActivity : AppCompatActivity() {
      * completes even if the activity is destroyed/recreated after it was armed.
      */
     private fun joinWifi(qr: QrData, gateOnAaSteady: Boolean) {
+        if (DummyBike.isDummy(qr)) {
+            // Test tool: no Wi‑Fi to join — the fake dash lives on 127.0.0.1 inside this app.
+            DummyBike.ensureListening()
+            LogBus.log("→ dummy bike: skipping Wi‑Fi join, linking over 127.0.0.1")
+            linkDummy(DummyBike.loopback, gateOnAaSteady)
+            return
+        }
+        if (UsbCar.isUsb(qr)) {
+            linkUsb(gateOnAaSteady)
+            return
+        }
+        joinRealBikeWifi(qr, gateOnAaSteady)
+    }
+
+    /** USB car: the transport is the already-open [UsbCarLink]; no Wi‑Fi join, no probe. */
+    private fun linkUsb(gateOnAaSteady: Boolean) {
+        log("→ USB car: skipping Wi‑Fi, serving the car over the USB bridge" +
+            if (UsbCarLink.isOpen) "" else " (car not attached yet)")
+        if (gateOnAaSteady) {
+            BikeLink.markUsbReady()
+            // Same relaxed gate as the dummy bike: any decoded AA video is enough to start serving.
+            fun waitForAaVideo(triesLeft: Int) {
+                logView.postDelayed({
+                    when {
+                        AaVideoBridge.aaDecoding -> {
+                            LogBus.log("→ USB car: AA video is flowing — starting the link")
+                            BikeLink.markAaVideoSteady()
+                        }
+                        triesLeft > 0 && AndroidAutoService.isRunning -> waitForAaVideo(triesLeft - 1)
+                        else -> LogBus.log("→ USB car: Android Auto never sent video")
+                    }
+                }, 1_000L)
+            }
+            waitForAaVideo(60)
+        } else {
+            ConnectionState.set(Phase.PXC_CONNECTING, UsbCar.DISPLAY_NAME)
+            try {
+                (BikeLink.prober ?: prober).startLoopback()
+            } catch (e: Exception) {
+                LogBus.log("prober (USB) start failed: $e")
+            }
+        }
+    }
+
+    /** Start the PXC link to the in-app fake dash on 127.0.0.1. */
+    private fun linkDummy(lo: java.net.Inet4Address, gateOnAaSteady: Boolean) {
+            if (gateOnAaSteady) {
+                BikeLink.markP2pReady(lo, lo)
+                // Emulators rarely reach AA's 25 fps "steady" mark (static screens idle near
+                // 10 fps), so the real-bike gate would never open. For the dummy, any decoded
+                // AA video is enough to start the link.
+                fun waitForAaVideo(triesLeft: Int) {
+                    logView.postDelayed({
+                        when {
+                            AaVideoBridge.aaDecoding -> {
+                                LogBus.log("→ dummy bike: AA video is flowing — starting the link without the 25 fps gate")
+                                BikeLink.markAaVideoSteady()
+                            }
+                            triesLeft > 0 && AndroidAutoService.isRunning -> waitForAaVideo(triesLeft - 1)
+                            else -> LogBus.log("→ dummy bike: Android Auto never sent video")
+                        }
+                    }, 1_000L)
+                }
+                waitForAaVideo(30)
+            } else {
+                ConnectionState.set(Phase.PXC_CONNECTING, DummyBike.DISPLAY_NAME)
+                try {
+                    (BikeLink.prober ?: prober).start(null, gatewayOverride = lo, bindIpOverride = lo)
+                } catch (e: Exception) {
+                    LogBus.log("prober start failed: $e")
+                }
+            }
+    }
+
+    private fun joinRealBikeWifi(qr: QrData, gateOnAaSteady: Boolean) {
         if (!WifiGate.ensureEnabledOrPrompt(this)) return
         ConnectionState.set(Phase.JOINING_WIFI)
         val transport = AppSettings.transport(this)
@@ -1347,6 +2146,48 @@ class MainActivity : AppCompatActivity() {
         ).also { it.start() }
     }
 
+    /** Permission card tap: ask for whatever is missing; if Android won't ask again, open app settings. */
+    private fun onPermissionCardTapped() {
+        val missing = SetupHelper.missingPermissions(this)
+        if (missing.isEmpty()) {
+            // Everything granted: same as Setup's "App settings" button.
+            try {
+                startActivity(
+                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                        .setData(android.net.Uri.fromParts("package", packageName, null)),
+                )
+            } catch (_: Exception) {
+                Toast.makeText(this, R.string.home_perm_ok, Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+        ActivityCompat.requestPermissions(this, missing.toTypedArray(), REQ_HOME_PERMS)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQ_HOME_PERMS) return
+        renderHome(ConnectionState.phase)
+        // Denied with "don't ask again" (or the system showed no dialog): only Settings can fix it.
+        val blocked = permissions.indices.any { i ->
+            grantResults.getOrNull(i) != PackageManager.PERMISSION_GRANTED &&
+                !ActivityCompat.shouldShowRequestPermissionRationale(this, permissions[i])
+        }
+        if (blocked) {
+            try {
+                startActivity(
+                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                        .setData(android.net.Uri.fromParts("package", packageName, null)),
+                )
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     private fun ensureLocationPermission() {
         // Some OEMs require fine location to associate via WifiNetworkSpecifier.
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
@@ -1364,6 +2205,15 @@ class MainActivity : AppCompatActivity() {
      *  2) Android Auto live → hand off to Google Maps (route should appear on the dash)
      *  3) Nothing projected → open Map hub search on the phone
      */
+    private fun searchTypedInMaps() {
+        val field = findViewById<android.widget.EditText>(R.id.et_destination)
+        (getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+            ?.hideSoftInputFromWindow(field.windowToken, 0)
+        if (!NavLauncher.searchInMaps(this, field.text?.toString().orEmpty())) {
+            Toast.makeText(this, R.string.home_search_maps_missing, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun navigateToTyped() {
         val field = findViewById<android.widget.EditText>(R.id.et_destination)
         val dest = field.text?.toString()?.trim().orEmpty()
@@ -1458,6 +2308,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopEverything() {
         log("→ stopping everything (Android Auto + bike)")
+        dev.zanderp.opencfmoto.aa.AaNavState.set(false)
         try { AaVideoBridge.onSteadyVideo = null } catch (_: Exception) {}
         try { AndroidAutoService.stop(this) } catch (e: Exception) { log("AA stop: $e") }
         try { if (::prober.isInitialized) prober.stop() } catch (e: Exception) { log("prober stop: $e") }
@@ -1760,9 +2611,12 @@ class MainActivity : AppCompatActivity() {
         /** When set with [EXTRA_START_GPX], join the bike even if not already live. */
         const val EXTRA_GPX_TO_BIKE = "gpx_to_bike"
         private const val REQ_BT_FOR_AA = 4
+        private const val REQ_HOME_PERMS = 77
         /** Latched once an auto-connect attempt actually starts, so it fires only once per process. */
         @Volatile private var autoConnectStarted = false
         /** So the "idle/not-in-range" reason is logged once, not on every onResume retry. */
         @Volatile private var autoConnectSkipLogged = false
+        /** Last time the dash was live (projecting/mirroring) — feeds the "Last sync" tile. */
+        @Volatile private var lastLiveAt = 0L
     }
 }

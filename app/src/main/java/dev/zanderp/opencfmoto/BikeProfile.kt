@@ -143,7 +143,7 @@ object BikeProfiles {
     // sized the Android Auto video for a tall screen it doesn't have, which the dash rejected → a ~7s
     // connect/drop flap. A genuine portrait unit (1000 MT-X) still wins outright because it scores far
     // higher (CFDL26 version_name + its package), so order only decides ties.
-    private val all: List<BikeProfile> = listOf(
+    private val all: List<BikeProfile> = if (BuildConfig.ONLY_675) listOf(LegacyCfdl16Profile) else listOf(
         Nk800Profile,
         Cfdl26NkTouchProfile,
         MoriniMlSoftApProfile,
@@ -158,6 +158,7 @@ object BikeProfiles {
      *  first profile in [all] (Nk800 / landscape-first) — see the note there. Honour Setup's
      *  [BikeProfileHolder.profileOverride] when set. */
     fun select(info: JSONObject, log: (String) -> Unit): BikeProfile {
+        if (BuildConfig.ONLY_675) return legacy // 675NK / 675SR flavor: always CFDL16
         BikeProfileHolder.profileOverride.resolve()?.let {
             log("[profile] manual override → ${it.name}")
             return it
@@ -172,8 +173,8 @@ object BikeProfiles {
      * When [context] is set, a previously learned panel size can override the guess (2nd connect).
      */
     fun selectByQr(qr: QrData?, context: android.content.Context? = null): BikeProfile {
-        BikeProfileHolder.profileOverride.resolve()?.let { return it }
-        val base = selectByQrGuess(qr)
+        if (!BuildConfig.ONLY_675) BikeProfileHolder.profileOverride.resolve()?.let { return it }
+        val base = if (BuildConfig.ONLY_675) legacy else selectByQrGuess(qr)
         if (context == null || qr == null) return base
         val panel = DashMemory.get(context, qr.ssid) ?: return base
         if (panel == base.panelSize) return base
@@ -255,6 +256,14 @@ object BikeProfileHolder {
     @Volatile var forceTouch: Boolean = false
 
     /**
+     * USB car (Perodua / Carbit): the head unit reports supportScreenTouch=true in CLIENT_INFO, but
+     * the QR-guess profile used when Android Auto starts is a non-touch one. Android Auto then runs
+     * its focus/knob UI and mostly ignores taps, so advertise touch for the car. Set per start in
+     * MainActivity.startAaFlow; the rider's "Disable touchscreen" still wins.
+     */
+    @Volatile var carUsbTouch: Boolean = false
+
+    /**
      * Setup ▸ bike profile override. Synced from [ProfilePrefs]; [ProfileOverride.AUTO] means
      * score from QR / CLIENT_INFO as usual.
      */
@@ -270,15 +279,39 @@ object BikeProfileHolder {
 
     /** Usable AA content size (coded frame minus [aaContentMargins]) — the aspect-correct area the
      *  compositor and the in-app Dash view actually show. Equals the coded size when margins are off. */
-    val aaUsableWidth: Int get() = (aaVideo.width - aaContentMargins.marginW).coerceIn(1, aaVideo.width)
-    val aaUsableHeight: Int get() = (aaVideo.height - aaContentMargins.marginH).coerceIn(1, aaVideo.height)
+    private val aaMarginUsableWidth: Int get() = (aaVideo.width - aaContentMargins.marginW).coerceIn(1, aaVideo.width)
+    private val aaMarginUsableHeight: Int get() = (aaVideo.height - aaContentMargins.marginH).coerceIn(1, aaVideo.height)
+
+    /**
+     * "Maps + music only": crop Android Auto's navigation bar (app launcher, etc.) off the picture
+     * and drop touches on it. AA draws the bar itself — we can't remove it — so we just never show
+     * or forward that strip. Portrait dashes have it at the bottom, landscape dashes on the left.
+     * [navBarDp] is the bar's thickness in dp (scaled by the AA dpi).
+     */
+    @Volatile var hideNavBar: Boolean = false
+    @Volatile var navBarDp: Int = 76
+
+    private val navBarPx: Int get() = Math.round(navBarDp * aaVideo.dpi / 160f)
+
+    /** Pixels cropped off the bottom of the usable area (portrait dashes). */
+    val navCropBottom: Int
+        get() = if (!hideNavBar || aaVideo.width > aaVideo.height) 0
+        else navBarPx.coerceIn(0, aaMarginUsableHeight / 3)
+
+    /** Pixels cropped off the left of the usable area (landscape dashes). */
+    val navCropLeft: Int
+        get() = if (!hideNavBar || aaVideo.width <= aaVideo.height) 0
+        else navBarPx.coerceIn(0, aaMarginUsableWidth / 3)
+
+    val aaUsableWidth: Int get() = aaMarginUsableWidth - navCropLeft
+    val aaUsableHeight: Int get() = aaMarginUsableHeight - navCropBottom
 
     /** Whether AA / CLIENT_INFO should advertise a touchscreen.
      *  [forceNonTouch] wins over [forceTouch]; otherwise profile default. */
     val advertisesScreenTouch: Boolean
         get() = when {
             forceNonTouch -> false
-            forceTouch -> true
+            forceTouch || carUsbTouch -> true
             else -> active.supportsScreenTouch
         }
 }

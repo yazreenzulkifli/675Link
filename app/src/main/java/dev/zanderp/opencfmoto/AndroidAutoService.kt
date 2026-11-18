@@ -173,6 +173,11 @@ class AndroidAutoService : Service() {
             if (screenWakeLock?.isHeld != true) applyGpxScreenWake(true)
             return
         }
+        // The dummy bike (test tool) lives on 127.0.0.1 — there is no bike Wi‑Fi to lose.
+        if (DummyBike.isDummy(BikeMemory.lastQr(this)) || UsbCar.isUsb(BikeMemory.lastQr(this))) {
+            wifiDownSince = 0L
+            return
+        }
         // Only park for a real Wi-Fi outage — a dash-only drop with Wi-Fi still up is the prober's job.
         val apConnected = BikeWifi.currentNetwork != null
         val p2pConnected = BikeWifiP2p.isConnected
@@ -263,6 +268,7 @@ class AndroidAutoService : Service() {
             AaVideoBridge.onSteadyVideo = null
             resumeSteadyReached = true
             ConnectionState.set(Phase.AA_VIDEO_LIVE)
+            markDevModeSeen()
             LogBus.log("→ Android Auto video is live (resume)")
             BikeLink.markAaVideoSteady()
         }
@@ -538,6 +544,7 @@ class AndroidAutoService : Service() {
 
     /** Keep AVRCP capture alive for AA and for Map (same ButtonMap presets). */
     private fun ensureMediaButtons() {
+        VolumeKeeper.start(applicationContext)   // idempotent; needs no Bluetooth permission
         if (mediaButtons != null) return
         if (!canCaptureHandlebarButtons()) {
             LogBus.log("[BTN] skipped — Bluetooth off or no Nearby/BLUETOOTH_CONNECT (no focus/volume hijack)")
@@ -602,6 +609,7 @@ class AndroidAutoService : Service() {
         if (ok) {
             LogBus.log("[AA→MAP] Map video attached")
             ConnectionState.set(Phase.STREAMING)
+            markDevModeSeen()
         } else {
             LogBus.log("[AA→MAP] Map attach failed — try Stop then Map")
             ConnectionState.set(Phase.ERROR, "Map switch failed — Stop, then Map")
@@ -672,6 +680,7 @@ class AndroidAutoService : Service() {
         try { TripAutoLog.sync(this) } catch (_: Exception) {}
         try { mediaButtons?.stop() } catch (_: Exception) {}
         mediaButtons = null
+        try { VolumeKeeper.stop() } catch (_: Exception) {}
         try { receiver?.stop() } catch (_: Exception) {}
         receiver = null
         AaVideoBridge.pipeline = null
@@ -687,7 +696,15 @@ class AndroidAutoService : Service() {
         super.onDestroy()
     }
 
+    /** A real Android Auto session ran, so its developer mode is on — the home "Dev mode" card reads this. */
+    private fun markDevModeSeen() = markDevModeSeen(this)
+
     companion object {
+        fun markDevModeSeen(ctx: android.content.Context) {
+            ctx.getSharedPreferences("home_prefs", android.content.Context.MODE_PRIVATE)
+                .edit().putBoolean("aa_dev_mode_seen", true).apply()
+        }
+
         private const val NOTIF_ID = 2
         private const val CHANNEL_ID = "opencfmoto_androidauto"
 
@@ -731,6 +748,11 @@ class AndroidAutoService : Service() {
 
         fun updateForegroundType() {
             active?.updateForegroundType(allowMicrophone = true)
+        }
+
+        /** Dial Android Auto's head unit server again after a dropped session (Dash view Reconnect). */
+        fun redialAndroidAuto() {
+            active?.receiver?.redialHeadunitServer()
         }
 
         fun upgradeForegroundForMicrophone() {

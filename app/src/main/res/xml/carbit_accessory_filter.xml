@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- USB accessory identity announced by Carbit "Oversea" car head units (read from the CarbitLink
+     6.5.1 and Perodua Smart Link 2.20.7 accessory filters). Used only by the experimental USB probe. -->
+<resources>
+    <usb-accessory
+        manufacturer="Carbit"
+        model="CarbitDriverOversea"
+        version="1" />
+</resources>
