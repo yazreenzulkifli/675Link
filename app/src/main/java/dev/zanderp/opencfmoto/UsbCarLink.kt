@@ -32,6 +32,9 @@ object UsbCar {
     /** Extra on the MainActivity launch intent: start Android Auto over the open USB link. */
     const val EXTRA_START = "dev.zanderp.opencfmoto.EXTRA_START_USB_CAR"
 
+    /** With [EXTRA_START]: bring the USB probe screen back to the front once Android Auto is starting. */
+    const val EXTRA_BACK_TO_PROBE = "dev.zanderp.opencfmoto.EXTRA_BACK_TO_PROBE"
+
     fun isUsb(qr: QrData?): Boolean = qr?.ssid == SSID
 
     fun ensureSelected(ctx: Context): QrData? {

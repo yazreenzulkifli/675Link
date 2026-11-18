@@ -222,7 +222,9 @@ class UsbProbeActivity : AppCompatActivity() {
         startActivity(
             Intent(this, MainActivity::class.java)
                 .putExtra(UsbCar.EXTRA_START, true)
+                .putExtra(UsbCar.EXTRA_BACK_TO_PROBE, true)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK),
+            android.app.ActivityOptions.makeCustomAnimation(this, 0, 0).toBundle(),
         )
     }
 

@@ -909,6 +909,21 @@ class MainActivity : AppCompatActivity() {
     private fun maybeStartFromUsbCar(intent: Intent?) {
         if (intent?.getBooleanExtra(UsbCar.EXTRA_START, false) != true) return
         intent.removeExtra(UsbCar.EXTRA_START)
+        val backToProbe = intent.getBooleanExtra(UsbCar.EXTRA_BACK_TO_PROBE, false)
+        intent.removeExtra(UsbCar.EXTRA_BACK_TO_PROBE)
+        if (backToProbe) {
+            // Started from the USB probe screen: give it back once Android Auto is on its way, so
+            // the rider isn't left on the home screen.
+            logView.postDelayed({
+                try {
+                    startActivity(
+                        Intent(this, UsbProbeActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                        android.app.ActivityOptions.makeCustomAnimation(this, 0, 0).toBundle(),
+                    )
+                } catch (_: Exception) {}
+            }, 600L)
+        }
         if (!UsbCarLink.isOpen) {
             log("→ USB car: no USB link yet — getting Android Auto ready first; the car link attaches when you press Detect Phone")
         }
