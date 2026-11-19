@@ -1,9 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Dash View. Landscape: glass header strip on top, up / Select / down pad bottom-left, dark Android
+     Auto stage filling the rest. Margins for the stage views are set in HudViewActivity.applyDashChrome. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/hud_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:background="@drawable/home_bg_gradient">
+
+    <!-- Dark stage frame behind the video -->
+    <View
+        android:id="@+id/hud_stage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/hud_stage" />
 
     <SurfaceView
         android:id="@+id/hud_surface"
@@ -18,111 +28,280 @@
         android:layout_height="match_parent"
         android:visibility="gone" />
 
-    <!-- Shown when Android Auto isn't live yet and no Map preview -->
-    <TextView
-        android:id="@+id/hud_hint"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
+    <!-- Empty-state column (hint + start buttons), centred in the stage -->
+    <LinearLayout
+        android:id="@+id/hud_empty"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:gravity="center"
-        android:padding="24dp"
-        android:text="@string/hud_start_android_auto_and_connect_to_your_bike_to_s"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp"
-        android:visibility="gone" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <!-- Top bar: close + title + controls toggle -->
+        <TextView
+            android:id="@+id/hud_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:padding="12dp"
+            android:letterSpacing="0.2"
+            android:text="@string/hud_no_signal"
+            android:textColor="#59FFFFFF"
+            android:textSize="38sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/hud_aa_no_bike"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:text="Start Android Auto (no bike)"
+            android:visibility="gone"
+            tools:ignore="HardcodedText" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/hud_dummy_bike"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:minHeight="48dp"
+            android:text="Dummy bike (test)"
+            android:visibility="gone"
+            tools:ignore="HardcodedText" />
+    </LinearLayout>
+
+    <!-- Header: left status cluster / centre telemetry / right controls + clock -->
     <LinearLayout
         android:id="@+id/hud_topbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
-        android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="#66000000"
-        android:paddingHorizontal="8dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp"
         android:paddingVertical="6dp">
 
-        <Button
-            android:id="@+id/hud_close"
+        <LinearLayout
+            android:id="@+id/hud_cluster_left"
             android:layout_width="wrap_content"
             android:layout_height="44dp"
-            android:minWidth="44dp"
-            android:text="@string/hud_str"
-            android:textSize="18sp" />
+            android:background="@drawable/hud_glass"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="5dp"
+            android:paddingEnd="12dp">
 
-        <TextView
-            android:id="@+id/hud_title"
+            <TextView
+                android:id="@+id/hud_close"
+                style="@style/HudBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:paddingHorizontal="14dp"
+                android:text="✕  Exit"
+                tools:ignore="HardcodedText" />
+
+            <TextView
+                android:id="@+id/hud_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:letterSpacing="0.12"
+                android:text="@string/home_default_title"
+                android:textAllCaps="true"
+                android:textColor="@color/home_text"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                tools:ignore="HardcodedText" />
+
+            <LinearLayout
+                android:id="@+id/hud_status_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/hud_badge_live"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp">
+
+                <View
+                    android:id="@+id/hud_status_dot"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:background="@drawable/home_dot"
+                    android:backgroundTint="@color/home_mint" />
+
+                <TextView
+                    android:id="@+id/hud_status_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:maxLines="1"
+                    android:text="AA offline"
+                    android:textColor="#047857"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    tools:ignore="HardcodedText" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/hud_cluster_center"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:text="@string/hud_dash_view"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:gravity="center"
+            android:orientation="horizontal">
 
-        <Button
-            android:id="@+id/hud_map_hub"
-            android:layout_width="wrap_content"
-            android:layout_height="44dp"
-            android:minWidth="44dp"
-            android:text="@string/hud_hub"
-            android:visibility="gone" />
+            <TextView
+                android:id="@+id/hud_bike_chip"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:background="@drawable/hud_chip"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:maxEms="14"
+                android:maxLines="1"
+                android:paddingHorizontal="12dp"
+                android:text="No bike"
+                android:textColor="@color/home_text"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                tools:ignore="HardcodedText" />
 
-        <Button
-            android:id="@+id/hud_theme"
-            android:layout_width="wrap_content"
-            android:layout_height="44dp"
-            android:layout_marginStart="4dp"
-            android:minWidth="44dp"
-            android:text="@string/hud_str_2"
-            android:textSize="16sp" />
-
-        <Button
-            android:id="@+id/hud_toggle_controls"
-            android:layout_width="wrap_content"
-            android:layout_height="44dp"
-            android:layout_marginStart="4dp"
-            android:text="@string/controls_controls" />
-
-        <Button
-            android:id="@+id/hud_fullscreen"
-            android:layout_width="wrap_content"
-            android:layout_height="44dp"
-            android:minWidth="44dp"
-            android:layout_marginStart="4dp"
-            android:text="@string/hud_str_3"
-            android:textSize="18sp" />
-    </LinearLayout>
-
-    <!-- Bottom control bar (works on every dash via the AAP INPUT channel) -->
-    <HorizontalScrollView
-        android:id="@+id/hud_controls"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:background="#66000000"
-        android:paddingHorizontal="6dp"
-        android:paddingVertical="6dp"
-        android:scrollbars="none">
+            <TextView
+                android:id="@+id/hud_batt_chip"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/hud_chip"
+                android:gravity="center"
+                android:paddingHorizontal="12dp"
+                android:text="Phone —"
+                android:textColor="@color/home_text"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/hud_cluster_right"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:background="@drawable/hud_glass"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="5dp">
+
+            <TextView
+                android:id="@+id/hud_map_hub"
+                style="@style/HudBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:paddingHorizontal="12dp"
+                android:text="@string/hud_hub"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/hud_theme"
+                style="@style/HudBtn"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:contentDescription="Map theme"
+                android:text="@string/hud_str_2"
+                android:textSize="15sp"
+                tools:ignore="HardcodedText" />
+
+            <TextView
+                android:id="@+id/hud_rotate"
+                style="@style/HudBtn"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="4dp"
+                android:contentDescription="Rotate display"
+                android:text="⟳"
+                android:textSize="17sp"
+                tools:ignore="HardcodedText" />
+
+            <TextView
+                android:id="@+id/hud_toggle_controls"
+                style="@style/HudBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:layout_marginStart="4dp"
+                android:paddingHorizontal="12dp"
+                android:text="@string/controls_controls"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/hud_fullscreen"
+                style="@style/HudBtn"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="4dp"
+                android:contentDescription="Fullscreen"
+                android:text="@string/hud_str_3"
+                android:textSize="17sp" />
+
+            <TextView
+                android:id="@+id/hud_gps_chip"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/hud_chip"
+                android:gravity="center"
+                android:paddingHorizontal="10dp"
+                android:text="GPS —"
+                android:textColor="@color/home_text"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                tools:ignore="HardcodedText" />
+
+            <TextClock
+                android:id="@+id/hud_clock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_marginEnd="6dp"
+                android:fontFeatureSettings="tnum"
+                android:format12Hour="h:mm a"
+                android:format24Hour="HH:mm"
+                android:textColor="@color/home_text"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Handlebar pad: up / Select / down. Landscape: bottom-left column beside the stage.
+         Hold or double-tap Select = Android Auto dashboard. Other buttons stay in the tree (hidden). -->
+    <LinearLayout
+        android:id="@+id/hud_controls"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:background="@drawable/hud_pad_bg"
+        android:elevation="6dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="8dp">
+
+        <LinearLayout
+            android:id="@+id/hud_controls_inner"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:divider="@null">
+            android:gravity="center"
+            android:orientation="horizontal">
 
-            <Button android:id="@+id/hud_knob_back" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="52dp" android:text="@string/hud_str_4" android:textSize="18sp" />
-            <Button android:id="@+id/hud_left" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="52dp" android:text="@string/controls_str_2" />
-            <Button android:id="@+id/hud_up" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="52dp" android:text="@string/controls_str" />
-            <Button android:id="@+id/hud_ok" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="60dp" android:text="OK" />
-            <Button android:id="@+id/hud_down" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="52dp" android:text="@string/controls_str_4" />
-            <Button android:id="@+id/hud_right" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="52dp" android:text="@string/controls_str_3" />
-            <Button android:id="@+id/hud_knob_fwd" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="52dp" android:text="@string/hud_str_5" android:textSize="18sp" />
-            <Button android:id="@+id/hud_back" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="64dp" android:text="@string/controls_back" />
-            <Button android:id="@+id/hud_home" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="64dp" android:text="@string/controls_home" />
-            <Button android:id="@+id/hud_voice" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="64dp" android:text="@string/hud_str_6" android:textSize="16sp" />
+            <TextView android:id="@+id/hud_knob_back" style="@style/HudBtn" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="52dp" android:text="@string/hud_str_4" android:textSize="18sp" android:visibility="gone" />
+            <TextView android:id="@+id/hud_left" style="@style/HudBtn" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="52dp" android:text="@string/controls_str_2" android:visibility="gone" />
+            <TextView android:id="@+id/hud_up" style="@style/HudBtn" android:layout_width="wrap_content" android:layout_height="52dp" android:minWidth="64dp" android:contentDescription="Previous item" android:text="@string/controls_str" android:textSize="20sp" tools:ignore="HardcodedText" />
+            <TextView android:id="@+id/hud_right" style="@style/HudBtn.Select" android:layout_width="wrap_content" android:layout_height="52dp" android:minWidth="64dp" android:contentDescription="Select" android:text="@string/controls_str_3" android:textSize="20sp" tools:ignore="HardcodedText" />
+            <TextView android:id="@+id/hud_ok" style="@style/HudBtn" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="60dp" android:text="OK" android:visibility="gone" tools:ignore="HardcodedText" />
+            <TextView android:id="@+id/hud_down" style="@style/HudBtn" android:layout_width="wrap_content" android:layout_height="52dp" android:minWidth="64dp" android:contentDescription="Next item" android:text="@string/controls_str_4" android:textSize="20sp" tools:ignore="HardcodedText" />
+            <TextView android:id="@+id/hud_knob_fwd" style="@style/HudBtn" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="52dp" android:text="@string/hud_str_5" android:textSize="18sp" android:visibility="gone" />
+            <TextView android:id="@+id/hud_back" style="@style/HudBtn" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="64dp" android:text="@string/controls_back" android:visibility="gone" />
+            <TextView android:id="@+id/hud_home" style="@style/HudBtn" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="64dp" android:text="@string/controls_home" android:visibility="gone" />
+            <TextView android:id="@+id/hud_voice" style="@style/HudBtn" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="64dp" android:text="@string/hud_str_6" android:textSize="16sp" android:visibility="gone" />
         </LinearLayout>
-    </HorizontalScrollView>
+    </LinearLayout>
 </FrameLayout>

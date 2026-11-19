@@ -456,6 +456,7 @@ class MainActivity : AppCompatActivity() {
         (findViewById<View>(R.id.btn_devices) as? MaterialButton)?.asIconTopTile(R.drawable.ic_devices)
         (findViewById<View>(R.id.btn_gpx) as? MaterialButton)?.asIconTopTile(R.drawable.ic_place)
         (findViewById<View>(R.id.btn_mirror_start) as? MaterialButton)?.asIconTopTile(R.drawable.ic_cast)
+        (findViewById<View>(R.id.btn_usb_car) as? MaterialButton)?.asIconTopTile(R.drawable.ic_usb)
         (findViewById<View>(R.id.btn_aa_stop) as? MaterialButton)?.setIconResource(R.drawable.ic_stop)
         // Pair TFT card "+ Scan QR" and field-guide utility buttons.
         (findViewById<View>(R.id.btn_aa_start) as? MaterialButton)?.isSingleLine = true
@@ -546,8 +547,12 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        // Car page: two steps. 1 = get Android Auto ready (Stop while it runs), 2 = connect to the car.
+        findViewById<Button>(R.id.btn_car_ready)?.setOnClickListener { onCarReadyPressed() }
+
         // Connect while idle; Stop while busy / projecting (merged former Stop button).
         connectBtn.setOnClickListener {
+            if (heroIsCar()) { onCarConnectPressed(); return@setOnClickListener }
             val phase = ConnectionState.phase
             if (phase.busy || phase == Phase.STREAMING || phase == Phase.MIRRORING) {
                 stopEverything()
@@ -570,12 +575,35 @@ class MainActivity : AppCompatActivity() {
                 showHeadUnitGuide()
                 return@setOnClickListener
             }
-            doConnect()
+            if (heroIsCar()) {
+                // Car box: start the watcher first so the log says "watching for the car — plug in
+                // the USB cable any time", then carry on getting Android Auto ready.
+                UsbCar.ensureSelected(this)
+                UsbCarLink.ensureWatching(this)
+                Toast.makeText(this, R.string.pick_target_car_watching, Toast.LENGTH_LONG).show()
+                doConnect()
+            } else if (BikeMemory.devices(this).none { !UsbCar.isUsb(it.qr) }) {
+                // Bike box but no bike saved yet: scan the dash QR.
+                startAaScan()
+            } else {
+                // Bike box: with several bikes saved, ask which one.
+                ConnectTargetDialog.show(this, onlyBikes = true) { picked ->
+                    val bike = picked ?: BikeMemory.devices(this).firstOrNull { !UsbCar.isUsb(it.qr) }
+                    bike?.let { BikeMemory.select(this, it.raw) }
+                    refreshBikeLabel()
+                    refreshReady()
+                    doConnect()
+                }
+            }
         }
 
         findViewById<Button>(R.id.btn_aa_start).setOnClickListener { startAaScan() }
 
         findViewById<Button>(R.id.btn_mirror_start).setOnClickListener { onMirrorPressed() }
+        // USB car mode (Perodua / Carbit head units): opens the USB page, which gets Android Auto ready.
+        findViewById<View>(R.id.btn_usb_car).setOnClickListener {
+            startActivity(Intent(this, UsbProbeActivity::class.java))
+        }
         // Tap → Google Maps (what Android Auto shows on the dash); long-press → OpenCfMoto's own map hub.
         findViewById<View>(R.id.btn_gpx).setOnClickListener {
             log("→ Map: open Google Maps")
@@ -609,16 +637,44 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.tel_dest_card)?.apply {
             isClickable = true
             setOnClickListener {
-                log("→ Destination card: open Google Maps")
-                if (!NavLauncher.openMaps(this@MainActivity)) onMapPressed()
+                if (heroIsCar()) {
+                    // Can't toggle it from an app — open Developer options where USB debugging lives.
+                    val devOn = android.provider.Settings.Global.getInt(
+                        contentResolver, android.provider.Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) == 1 ||
+                        android.provider.Settings.Global.getInt(
+                            contentResolver, android.provider.Settings.Global.ADB_ENABLED, 0) == 1
+                    val tries = if (devOn) listOf(
+                        Intent().setClassName("com.android.settings", "com.android.settings.Settings\$DevelopmentSettingsDashboardActivity"),
+                        Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS),
+                        Intent(android.provider.Settings.ACTION_SETTINGS),
+                    ) else {
+                        Toast.makeText(this@MainActivity, "Turn on Developer options first: tap Build number 7 times", Toast.LENGTH_LONG).show()
+                        listOf(Intent(android.provider.Settings.ACTION_DEVICE_INFO_SETTINGS))
+                    }
+                    for (i in tries) { try { startActivity(i); break } catch (_: Exception) { } }
+                } else {
+                    log("→ Destination card: open Google Maps")
+                    if (!NavLauncher.openMaps(this@MainActivity)) onMapPressed()
+                }
             }
             setOnLongClickListener {
-                onMapPressed()
+                if (!heroIsCar()) onMapPressed()
                 true
             }
         }
         findViewById<Button>(R.id.btn_aa_stop).setOnClickListener { stopEverything() }
 
+        // Tapping the status pill on the hero opens the log drawer and scrolls straight to it.
+        (statusView.parent as? View)?.setOnClickListener {
+            if (logPanel.visibility != View.VISIBLE) toggleLogBtn.performClick()
+            findViewById<androidx.core.widget.NestedScrollView>(R.id.main_scroll).postDelayed({
+                val sv = findViewById<androidx.core.widget.NestedScrollView>(R.id.main_scroll)
+                val r = android.graphics.Rect(0, 0, logPanel.width, logPanel.height)
+                sv.offsetDescendantRectToMyCoords(logPanel, r)
+                sv.smoothScrollTo(0, (r.top - 16).coerceAtLeast(0))
+                logScroll.post { logScroll.fullScroll(ScrollView.FOCUS_DOWN) }
+            }, 120)
+        }
         toggleLogBtn.setOnClickListener {
             val show = logPanel.visibility != View.VISIBLE
             logPanel.visibility = if (show) View.VISIBLE else View.GONE
@@ -643,7 +699,9 @@ class MainActivity : AppCompatActivity() {
             isClickable = true
             // Red → the Start guide Connect shows; green → a Stop guide.
             setOnClickListener {
-                if (headUnitServerUp) {
+                if (headUnitServerUp && AaVideoBridge.headUnitStuck) {
+                    HeadUnitDialog.showRestart(this@MainActivity) { openAndroidAuto() }
+                } else if (headUnitServerUp) {
                     HeadUnitDialog.showStop(this@MainActivity) { openAndroidAuto() }
                 } else {
                     showHeadUnitGuide()
@@ -796,6 +854,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         CrashGuard.persistSession(this)
         TripLogger.get(this).let { if (it.onStats === heroStatsListener) it.onStats = null }
+        logView.removeCallbacks(carStatusTick)
         super.onPause()
     }
 
@@ -835,19 +894,32 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         // The active bike (and its name) may have changed in the Garage — reflect it on the label and
-        // the Connect button.
+        // the Connect button, and move the hero to the matching box.
+        BikeMemory.selected(this)?.raw.let { cur -> if (cur != lastSelRaw) { lastSelRaw = cur; syncHeroPage() } }
         refreshBikeLabel()
         renderStatus(ConnectionState.phase, ConnectionState.detail)
         TripLogger.get(this).let { it.onStats = heroStatsListener; renderHeroSpeed(it.snapshot()) }
         logView.removeCallbacks(homeTick)
         logView.postDelayed(homeTick, 30_000L)
+        logView.removeCallbacks(carStatusTick)
+        logView.post(carStatusTick)
         if (WifiGate.isWifiEnabled(this)) WifiGate.cancelNotification(this)
         // Retry auto-connect on resume: after finishing first-run setup, or once the bike's Wi-Fi
         // comes into range shortly after launch. Guarded so it only ever starts one attempt.
         if (SetupActivity.hasSeen(this)) maybeAutoConnect()
         maybeCheckUpdate()
+        maybeShowHeadUnitStopFromReminder(intent)
         maybeResumeFromParked(intent)
         resumeConnectIfHeadUnitUp()
+    }
+
+    /** Ride-finished reminder tapped → show the "Stop head unit server" guide (once per tap). */
+    private fun maybeShowHeadUnitStopFromReminder(intent: Intent?) {
+        if (intent?.getBooleanExtra(AndroidAutoService.EXTRA_SHOW_HU_STOP, false) != true) return
+        if (intent.getBooleanExtra(EXTRA_HU_STOP_SHOWN, false)) return
+        intent.putExtra(EXTRA_HU_STOP_SHOWN, true)
+        log("→ Ride-finished reminder tapped: showing how to stop the head unit server")
+        logView.post { if (!isFinishing) HeadUnitDialog.showStop(this) { openAndroidAuto() } }
     }
 
     /**
@@ -857,6 +929,8 @@ class MainActivity : AppCompatActivity() {
      * `startActivity(gearhead)` is allowed because we're in the foreground.
      */
     private fun maybeResumeFromParked(intent: Intent?) {
+        // Opened from the ride-finished reminder: the rider is done riding — never auto-resume here.
+        if (intent?.getBooleanExtra(AndroidAutoService.EXTRA_SHOW_HU_STOP, false) == true) return
         val explicit = intent?.getBooleanExtra(AndroidAutoService.EXTRA_RESUME, false) == true
         if (!explicit && !AndroidAutoService.isParked && ConnectionState.phase != Phase.WAITING_FOR_BIKE) return
         val saved = BikeMemory.lastQr(this) ?: return
@@ -1020,6 +1094,56 @@ class MainActivity : AppCompatActivity() {
     /** Set when we sent the rider to Android Auto to start the head unit server; Connect resumes on return. */
     private var awaitingHeadUnit = false
 
+    /** Car page: Android Auto is up and the servers are listening, only the car is missing. */
+    private fun carStandby(): Boolean =
+        heroIsCar() && UsbCarLink.isReadyForCar() && !UsbCarLink.isOpen &&
+            ConnectionState.phase != Phase.ERROR
+
+    private var carStandbyShown = false
+
+    private fun carBusy(): Boolean {
+        val p = ConnectionState.phase
+        return p.busy || p == Phase.STREAMING || p == Phase.MIRRORING
+    }
+
+    /** Same setup checks the old single Connect button ran; false = a dialog was shown. */
+    private fun carGuardsOk(): Boolean {
+        if (DependencyPrompt.showForConnect(this, forScan = false)) {
+            log("→ Connect blocked — missing dependencies (see dialog)")
+            return false
+        }
+        if (!permOk) { showPermissionGuide(); return false }
+        if (!devOn) { showDevModeGuide(); return false }
+        if (!headUnitServerUp) { showHeadUnitGuide(); return false }
+        return true
+    }
+
+    /** Car step 1: get Android Auto ready (Stop while it is running). */
+    private fun onCarReadyPressed() {
+        if (carBusy()) { stopEverything(); return }
+        if (!carGuardsOk()) return
+        UsbCar.ensureSelected(this)
+        UsbCarLink.ensureWatching(this)
+        Toast.makeText(this, R.string.pick_target_car_watching, Toast.LENGTH_LONG).show()
+        doConnect()
+    }
+
+    /** Car step 2: connect to the car (the watcher opens the USB link when the car attaches). */
+    private fun onCarConnectPressed() {
+        if (!carGuardsOk()) return
+        UsbCar.ensureSelected(this)
+        UsbCarLink.ensureWatching(this)
+        when {
+            UsbCarLink.isOpen -> Toast.makeText(this, R.string.car_step2_sub_connected, Toast.LENGTH_SHORT).show()
+            !carBusy() -> {
+                // Step 1 was skipped: do it now so the car has something to connect to.
+                Toast.makeText(this, R.string.pick_target_car_watching, Toast.LENGTH_LONG).show()
+                doConnect()
+            }
+            else -> Toast.makeText(this, R.string.car_step2_sub_ready, Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun doConnect() {
         val saved = BikeMemory.lastQr(this)
         if (saved != null) {
@@ -1125,7 +1249,7 @@ class MainActivity : AppCompatActivity() {
         }
         connectBtn.text = connectLabel(phase)
         (connectBtn as? MaterialButton)?.setIconResource(
-            if (phase.busy || phase == Phase.STREAMING || phase == Phase.MIRRORING) {
+            if (!heroIsCar() && (phase.busy || phase == Phase.STREAMING || phase == Phase.MIRRORING)) {
                 R.drawable.ic_stop
             } else {
                 R.drawable.ic_cast
@@ -1151,6 +1275,7 @@ class MainActivity : AppCompatActivity() {
         val (badgeRes, badgeColorRes) = when {
             phase == Phase.ERROR -> R.string.home_badge_error to R.color.home_red
             live -> R.string.home_badge_live to R.color.home_mint
+            carStandby() -> R.string.home_badge_standby to R.color.home_mint
             phase.busy -> R.string.home_badge_linking to R.color.home_amber
             !ready -> R.string.home_badge_not_ready to R.color.home_red
             saved -> R.string.home_badge_paired to R.color.home_mint
@@ -1185,7 +1310,7 @@ class MainActivity : AppCompatActivity() {
         }
         val cyan = ContextCompat.getColor(this, R.color.home_cyan)
         val idle = ContextCompat.getColor(this, R.color.home_text_2)
-        for (id in intArrayOf(R.id.btn_hud_view, R.id.btn_devices, R.id.btn_gpx, R.id.btn_mirror_start)) {
+        for (id in intArrayOf(R.id.btn_hud_view, R.id.btn_devices, R.id.btn_gpx, R.id.btn_mirror_start, R.id.btn_usb_car)) {
             (findViewById<View>(id) as? MaterialButton)?.apply {
                 val on = id == activeDock
                 backgroundTintList = android.content.res.ColorStateList.valueOf(
@@ -1231,8 +1356,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
         // Destination: set (green) when our map has one or Google Maps is actively navigating.
-        val destSet = (dev.zanderp.opencfmoto.aa.AaNavState.active && AaVideoBridge.pipeline != null) ||
+        // Car box: card 4 becomes "USB debugging" on/off instead (the car link needs adb enabled).
+        val carMode = heroIsCar()
+        val adbOn = try {
+            android.provider.Settings.Global.getInt(contentResolver, android.provider.Settings.Global.ADB_ENABLED, 0) == 1
+        } catch (_: Exception) { false }
+        val destSet = if (carMode) adbOn else
+            (dev.zanderp.opencfmoto.aa.AaNavState.active && AaVideoBridge.pipeline != null) ||
             GpxSession.destination != null || GmapsNav.current != null
+        findViewById<TextView>(R.id.tel_dest_label)?.text =
+            "4  " + getString(if (carMode) R.string.home_tel_usbdebug else R.string.home_tel_dest)
         val destBg = ContextCompat.getColor(this, if (destSet) R.color.home_mint else R.color.home_red)
         val destFg = android.graphics.Color.WHITE
         findViewById<View>(R.id.tel_dest_card)?.background = android.graphics.drawable.GradientDrawable().apply {
@@ -1240,7 +1373,10 @@ class MainActivity : AppCompatActivity() {
             setColor(destBg)
         }
         findViewById<TextView>(R.id.tel_phone)?.apply {
-            text = getString(if (destSet) R.string.home_dest_set else R.string.home_dest_unset)
+            text = getString(
+                if (carMode) (if (destSet) R.string.home_usbdebug_on else R.string.home_usbdebug_off)
+                else if (destSet) R.string.home_dest_set else R.string.home_dest_unset,
+            )
             setTextColor(destFg)
         }
         findViewById<TextView>(R.id.tel_dest_label)?.setTextColor(destFg)
@@ -1252,7 +1388,9 @@ class MainActivity : AppCompatActivity() {
         // probe never touches AA, so it is safe to run in every phase.
         val aaLive = ConnectionState.phase.let { it == Phase.STREAMING || it == Phase.AA_VIDEO_LIVE }
         probeHeadUnitServer()
-        val online = aaLive || headUnitServerUp
+        // Server is on but not answering (handshake failed / never answered): needs a restart.
+        val stuck = headUnitServerUp && AaVideoBridge.headUnitStuck && !aaLive
+        val online = (aaLive || headUnitServerUp) && !stuck
         // Card background goes green (black text) or red (white text).
         val bg = ContextCompat.getColor(this, if (online) R.color.home_mint else R.color.home_red)
         val fg = android.graphics.Color.WHITE
@@ -1261,7 +1399,11 @@ class MainActivity : AppCompatActivity() {
             setColor(bg)
         }
         findViewById<TextView>(R.id.tel_sync)?.apply {
-            text = getString(if (online) R.string.home_unit_online else R.string.home_unit_offline)
+            text = getString(when {
+                stuck -> R.string.home_unit_restart
+                online -> R.string.home_unit_online
+                else -> R.string.home_unit_offline
+            })
             setTextColor(fg)
         }
         findViewById<TextView>(R.id.tel_unit_label)?.setTextColor(fg)
@@ -1317,8 +1459,10 @@ class MainActivity : AppCompatActivity() {
 
     /** Cyan when ready to connect; red while acting as Stop or while setup steps 1–3 aren't all green. */
     private fun applyConnectBackground(phase: Phase) {
-        val stopping = phase.busy || phase == Phase.STREAMING || phase == Phase.MIRRORING
-        val ready = permOk && devOn && unitOnline
+        val stopping = !heroIsCar() && (phase.busy || phase == Phase.STREAMING || phase == Phase.MIRRORING)
+        // Car page: step 2 is red until Android Auto is ready (or the car is already linked).
+        val carNotReady = heroIsCar() && !UsbCarLink.isOpen && !UsbCarLink.isReadyForCar()
+        val ready = permOk && devOn && unitOnline && !carNotReady
         (connectBtn as? MaterialButton)?.apply {
             backgroundTintList = null
             setBackgroundResource(
@@ -1328,11 +1472,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun connectLabel(phase: Phase): CharSequence {
+        if (heroIsCar()) {
+            // Car page: this is step 2 (step 1 has its own button, which also acts as Stop).
+            connectBtn.isSingleLine = false
+            connectBtn.maxLines = 2
+            val sub = getString(when {
+                UsbCarLink.isOpen -> R.string.car_step2_sub_connected
+                UsbCarLink.isReadyForCar() -> R.string.car_step2_sub_ready
+                else -> R.string.car_step2_sub_first
+            })
+            return android.text.SpannableStringBuilder(getString(R.string.car_step2_connect)).apply {
+                append('\n')
+                val start = length
+                append(sub)
+                setSpan(android.text.style.RelativeSizeSpan(0.75f), start, length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
         val stopping = phase.busy || phase == Phase.STREAMING || phase == Phase.MIRRORING
         val base = when {
             stopping -> getString(R.string.main_stop)
-            BikeMemory.hasSaved(this) ->
-                getString(R.string.main_connect_to, BikeMemory.lastBikeName(this) ?: "")
+            heroIsCar() -> getString(R.string.main_connect_to, UsbCar.DISPLAY_NAME)
+            realBikeSelected() != null ->
+                getString(R.string.main_connect_to, realBikeSelected()?.name ?: "")
             else -> getString(R.string.home_connect_launch)
         }
         if (stopping) return base
@@ -1400,6 +1561,83 @@ class MainActivity : AppCompatActivity() {
     /** Home hero photo variants; tapping the photo cycles through them (choice is remembered). */
     private val bikePhotos = intArrayOf(R.drawable.home_bike_photo, R.drawable.home_bike_photo_srr)
     private val bikePhotoNames = arrayOf("675NK", "675SR-R")
+    private var bikePhotoIndex = 0
+    private var heroPager: androidx.viewpager2.widget.ViewPager2? = null
+    private var lastSelRaw: String? = null
+
+    /** Car box status line: connected / waiting for the cable (after Connect) / not connected to USB. */
+    private fun updateCarStatus() {
+        val tv = findViewById<TextView>(R.id.car_usb_status) ?: return
+        findViewById<TextView>(R.id.home_cta_sub)?.setText(
+            if (heroIsCar()) R.string.home_cta_sub_car else R.string.home_cta_sub,
+        )
+        val car = heroIsCar()
+        findViewById<MaterialButton>(R.id.btn_car_ready)?.let { b ->
+            b.visibility = if (car) View.VISIBLE else View.GONE
+            if (car) {
+                val busy = carBusy()
+                b.text = getString(if (busy) R.string.car_step1_stop else R.string.car_step1_ready)
+                b.setIconResource(if (busy) R.drawable.ic_stop else R.drawable.ic_sync)
+                b.backgroundTintList = null
+                b.setBackgroundResource(if (busy) R.drawable.home_cta_stop else R.drawable.home_cta_gradient)
+            }
+        }
+        if (car && ::connectBtn.isInitialized) {
+            connectBtn.text = connectLabel(ConnectionState.phase)
+            applyConnectBackground(ConnectionState.phase)
+        }
+        // "Starting Android Auto…" would otherwise stay on screen while it is really standing by.
+        val standby = carStandby()
+        if (standby) {
+            statusView.setText(R.string.car_standby)
+            statusProgress.visibility = View.GONE
+            applyStatusBadge(ConnectionState.phase)
+        } else if (carStandbyShown) {
+            val ph = ConnectionState.phase
+            statusView.text = getString(ph.labelRes)
+            statusProgress.visibility = if (ph.busy) View.VISIBLE else View.GONE
+            applyStatusBadge(ph)
+        }
+        carStandbyShown = standby
+        if (!car) { tv.visibility = View.GONE; return }
+        tv.visibility = View.VISIBLE
+        val (text, color) = when {
+            UsbCarLink.isOpen -> getString(R.string.car_usb_connected) to 0xFF10B981.toInt()
+            UsbCarLink.isWatching && UsbCarLink.isReadyForCar() -> getString(R.string.car_usb_ready) to 0xFF10B981.toInt()
+            UsbCarLink.isWatching && AndroidAutoService.isRunning -> getString(R.string.car_usb_waiting) to 0xFFF59E0B.toInt()
+            else -> getString(R.string.car_usb_off) to 0xFFEF4444.toInt()
+        }
+        tv.text = text
+        tv.setTextColor(color)
+    }
+
+    private val carStatusTick = object : Runnable {
+        override fun run() {
+            updateCarStatus()
+            logView.postDelayed(this, 1_000L)
+        }
+    }
+
+    /** Which box is showing: the car (page 2) or the bike (page 1). Falls back to the selection before the pager exists. */
+    private fun heroIsCar(): Boolean =
+        heroPager?.let { it.currentItem == 1 } ?: UsbCar.isUsb(BikeMemory.selected(this)?.qr)
+
+    /** The selected device when it is a real bike (never the USB car). */
+    private fun realBikeSelected(): SavedBike? =
+        BikeMemory.selected(this)?.takeIf { !UsbCar.isUsb(it.qr) }
+    private var heroSyncing = false
+    private val heroPhotos = mutableListOf<android.widget.ImageView>()
+    private fun setHeroFilter(cf: android.graphics.ColorFilter?) { heroPhotos.forEach { it.colorFilter = cf } }
+
+    /** Move the hero to the page of the selected device (car → box 2, otherwise the bike box). */
+    private fun syncHeroPage() {
+        val pager = heroPager ?: return
+        val want = if (UsbCar.isUsb(BikeMemory.selected(this)?.qr)) 1 else 0
+        if (pager.currentItem == want) return
+        heroSyncing = true
+        pager.setCurrentItem(want, true)
+        pager.postDelayed({ heroSyncing = false }, 400)
+    }
 
     /** Speed page of the home hero (null until [setupHeroPager]). */
     private var heroSpeedPage: View? = null
@@ -1410,17 +1648,29 @@ class MainActivity : AppCompatActivity() {
      */
     private fun setupHeroPager() {
         val pager = findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.home_hero_pager) ?: return
-        val photo = android.widget.ImageView(this).apply {
+        fun photoView() = android.widget.ImageView(this).apply {
             scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
             setPadding(0, 0, 0, (16 * resources.displayMetrics.density).toInt())
-            isClickable = true
-            isFocusable = true
         }
-        setupBikePhoto(photo)
-        val speed = layoutInflater.inflate(R.layout.home_hero_speed, pager, false)
-        speed.setOnClickListener { TripActivity.start(this) }
-        heroSpeedPage = speed
-        val pages = listOf<View>(photo, speed)
+        // Two swipeable boxes: page 0 = the bike, page 1 = the USB car. The page is the selected target.
+        val bikePhoto = photoView().apply { isClickable = true; isFocusable = true }
+        val carPhoto = photoView().apply {
+            setImageResource(R.drawable.home_car_photo)
+            contentDescription = "Perodua Myvi"
+        }
+        heroPhotos.clear()
+        heroPhotos += bikePhoto
+        heroPhotos += carPhoto
+        setupBikePhoto(bikePhoto)
+        val pages = listOf<View>(bikePhoto, carPhoto)
+        heroPager = pager
+        // The whole card swipes (see SwipeCardLayout); the inner pager only holds the two photos.
+        pager.isUserInputEnabled = false
+        findViewById<SwipeCardLayout>(R.id.home_hero_swipe)?.apply {
+            canMove = { dir -> (pager.currentItem + dir) in 0..1 }
+            onCommit = { dir -> pager.setCurrentItem(pager.currentItem + dir, false) }
+        }
+        findViewById<android.widget.LinearLayout>(R.id.home_hero_dots)?.visibility = View.VISIBLE
 
         pager.offscreenPageLimit = 1
         pager.adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<androidx.recyclerview.widget.RecyclerView.ViewHolder>() {
@@ -1442,28 +1692,70 @@ class MainActivity : AppCompatActivity() {
         // Page dots.
         val dots = findViewById<android.widget.LinearLayout>(R.id.home_hero_dots)
         val d = resources.displayMetrics.density
-        val dotViews = pages.map {
-            View(this).apply {
-                layoutParams = android.widget.LinearLayout.LayoutParams((6 * d).toInt(), (6 * d).toInt())
-                    .apply { marginStart = (3 * d).toInt(); marginEnd = (3 * d).toInt() }
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.OVAL
+        // Bike | Car tabs (replace the two page dots): tap to switch, stays in sync with swiping.
+        val tabLabels = listOf(getString(R.string.home_tab_bike), getString(R.string.home_tab_car))
+        dots?.apply {
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 20 * d
+                setColor(0xFFEEF2F6.toInt())
+            }
+            setPadding((3 * d).toInt(), (3 * d).toInt(), (3 * d).toInt(), (3 * d).toInt())
+            (layoutParams as? android.widget.FrameLayout.LayoutParams)?.topMargin = (2 * d).toInt()
+        }
+        val swipeCard = findViewById<SwipeCardLayout>(R.id.home_hero_swipe)
+        val tabViews = tabLabels.mapIndexed { i, label ->
+            TextView(this).apply {
+                text = label
+                textSize = 13f
+                typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                gravity = android.view.Gravity.CENTER
+                minWidth = (64 * d).toInt()
+                setPadding((14 * d).toInt(), (6 * d).toInt(), (14 * d).toInt(), (6 * d).toInt())
+                setOnClickListener {
+                    val dir = i - pager.currentItem
+                    if (dir != 0) swipeCard?.slide(dir)
                 }
             }.also { dots?.addView(it) }
         }
-        fun paintDots(sel: Int) = dotViews.forEachIndexed { i, v ->
-            (v.background as android.graphics.drawable.GradientDrawable).setColor(
-                ContextCompat.getColor(this, if (i == sel) R.color.home_cyan else R.color.home_border),
-            )
+        fun paintTabs(sel: Int) = tabViews.forEachIndexed { i, v ->
+            val on = i == sel
+            v.setTextColor(if (on) android.graphics.Color.WHITE else ContextCompat.getColor(this, R.color.home_text_2))
+            v.background = if (on) android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 18 * d
+                setColor(ContextCompat.getColor(this@MainActivity, R.color.home_cyan))
+            } else null
         }
-        paintDots(0)
+        fun paintDots(sel: Int) {
+            // The car box has no handlebar buttons, so the "Don't lock volume" switch is bike-only.
+            findViewById<View>(R.id.home_switch_free_volume)?.visibility = if (sel == 1) View.GONE else View.VISIBLE
+            findViewById<View>(R.id.car_usb_status)?.visibility = if (sel == 1) View.VISIBLE else View.GONE
+            // Pairing by dash QR is for bikes; a car head unit has no QR.
+            findViewById<View>(R.id.home_pair_card)?.visibility = if (sel == 1) View.GONE else View.VISIBLE
+            paintTabs(sel)
+            // Card 4 differs per box (Destination for the bike, USB debugging for the car).
+            pager.post { if (!isFinishing) renderHome(ConnectionState.phase) }
+        }
+        val startPage = if (UsbCar.isUsb(BikeMemory.selected(this)?.qr)) 1 else 0
+        pager.setCurrentItem(startPage, false)
+        lastSelRaw = BikeMemory.selected(this)?.raw
+        paintDots(startPage)
         pager.registerOnPageChangeCallback(object : androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
                 paintDots(position)
-                if (position == 1) renderHeroSpeed(TripLogger.get(this@MainActivity).snapshot())
+                if (heroSyncing) return
+                // Swiping picks the target: the car, or the most recent real bike (none → scan a QR).
+                if (position == 1) {
+                    UsbCar.ensureSelected(this@MainActivity)
+                } else {
+                    val bike = BikeMemory.devices(this@MainActivity).firstOrNull { !UsbCar.isUsb(it.qr) }
+                    if (bike != null) BikeMemory.select(this@MainActivity, bike.raw)
+                    else BikeMemory.clearSelection(this@MainActivity)
+                }
+                lastSelRaw = BikeMemory.selected(this@MainActivity)?.raw
+                refreshBikeLabel()
+                refreshReady()
             }
         })
-        renderHeroSpeed(TripLogger.get(this).snapshot())
     }
 
     /** Live trip numbers on the hero's speed page (same maths as [TripActivity]). */
@@ -1485,7 +1777,6 @@ class MainActivity : AppCompatActivity() {
         page.findViewById<TextView>(R.id.home_speed_avg).text = "${avg.toInt()} km/h"
     }
 
-    private var heroPhoto: android.widget.ImageView? = null
 
     /** Red wash over the bike photo while setup steps 1–3 aren't all green (transparent pixels stay clear). */
     private fun applyHeroTint() {
@@ -1493,7 +1784,7 @@ class MainActivity : AppCompatActivity() {
         if (ready) {
             heroPulse?.cancel()
             heroPulse = null
-            heroPhoto?.colorFilter = null
+            setHeroFilter(null)
             return
         }
         if (heroPulse?.isRunning == true) return
@@ -1505,9 +1796,9 @@ class MainActivity : AppCompatActivity() {
             interpolator = android.view.animation.AccelerateDecelerateInterpolator()
             addUpdateListener {
                 val a = it.animatedValue as Int
-                heroPhoto?.colorFilter = android.graphics.PorterDuffColorFilter(
+                setHeroFilter(android.graphics.PorterDuffColorFilter(
                     (a shl 24) or 0x00EF4444, android.graphics.PorterDuff.Mode.SRC_ATOP,
-                )
+                ))
             }
             start()
         }
@@ -1516,19 +1807,19 @@ class MainActivity : AppCompatActivity() {
     private var heroPulse: android.animation.ValueAnimator? = null
 
     private fun setupBikePhoto(photo: android.widget.ImageView) {
-        heroPhoto = photo
         applyHeroTint()
         val prefs = getSharedPreferences("opencfmoto_home", MODE_PRIVATE)
-        var index = prefs.getInt("bike_photo", 0).coerceIn(0, bikePhotos.lastIndex)
-        photo.setImageResource(bikePhotos[index])
-        photo.contentDescription = bikePhotoNames[index]
+        bikePhotoIndex = prefs.getInt("bike_photo", 0).coerceIn(0, bikePhotos.lastIndex)
+        photo.setImageResource(bikePhotos[bikePhotoIndex])
+        photo.contentDescription = bikePhotoNames[bikePhotoIndex]
         photo.setOnClickListener {
-            index = (index + 1) % bikePhotos.size
-            prefs.edit().putInt("bike_photo", index).apply()
+            // Tapping the bike box cycles the bike variants.
+            bikePhotoIndex = (bikePhotoIndex + 1) % bikePhotos.size
+            prefs.edit().putInt("bike_photo", bikePhotoIndex).apply()
             photo.animate().cancel()
             photo.animate().alpha(0f).setDuration(120).withEndAction {
-                photo.setImageResource(bikePhotos[index])
-                photo.contentDescription = bikePhotoNames[index]
+                photo.setImageResource(bikePhotos[bikePhotoIndex])
+                photo.contentDescription = bikePhotoNames[bikePhotoIndex]
                 photo.animate().alpha(1f).setDuration(180).start()
             }.start()
         }
@@ -1716,7 +2007,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bikeLabelText(): String {
-        val name = BikeMemory.lastBikeName(this)
+        // The car head unit has no QR: this card is about pairing a bike, so don't call the car "paired" here.
+        if (heroIsCar()) return getString(R.string.home_pair_hint_car)
+        val name = realBikeSelected()?.name
         return if (name != null) getString(R.string.main_paired, name)
         else getString(R.string.main_no_bike_paired)
     }
@@ -2588,6 +2881,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_START_GPX = "start_gpx"
+        private const val EXTRA_HU_STOP_SHOWN = "hu_stop_shown"
         const val EXTRA_BT_TRIGGER = "bt_trigger"
         /** When set with [EXTRA_START_GPX], join the bike even if not already live. */
         const val EXTRA_GPX_TO_BIKE = "gpx_to_bike"

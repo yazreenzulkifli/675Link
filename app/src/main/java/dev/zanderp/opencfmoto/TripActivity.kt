@@ -17,6 +17,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.progressindicator.CircularProgressIndicator
 import java.util.Locale
 
 /**
@@ -36,6 +37,7 @@ class TripActivity : AppCompatActivity() {
     private lateinit var avgView: TextView
     private lateinit var startBtn: MaterialButton
     private lateinit var resetBtn: MaterialButton
+    private lateinit var gauge: CircularProgressIndicator
 
     private lateinit var recorder: TripRecorder
 
@@ -58,12 +60,14 @@ class TripActivity : AppCompatActivity() {
         avgView = findViewById(R.id.trip_avg)
         startBtn = findViewById(R.id.trip_start)
         resetBtn = findViewById(R.id.trip_reset)
+        gauge = findViewById(R.id.trip_gauge)
+        findViewById<android.view.View>(R.id.trip_back).setOnClickListener { finish() }
 
         recorder = TripLogger.get(this)
 
         startBtn.setOnClickListener { if (recorder.recording) recorder.stopAndSave() else tryStart() }
         resetBtn.setOnClickListener { recorder.discard() }
-        findViewById<MaterialButton>(R.id.trip_saved_btn).setOnClickListener { TripsListActivity.start(this) }
+        findViewById<android.view.View>(R.id.trip_saved_btn).setOnClickListener { TripsListActivity.start(this) }
 
         render(recorder.snapshot())
     }
@@ -103,6 +107,7 @@ class TripActivity : AppCompatActivity() {
 
     private fun render(s: TripRecorder.Stats) {
         speedView.text = s.speedKmh.toString()
+        gauge.setProgressCompat((s.speedKmh.coerceIn(0, 300) * 1000) / 300, true)
         gpsView.text = when {
             !s.recording -> "Stopped"
             !s.hasFix -> "Acquiring GPS…"
@@ -114,6 +119,7 @@ class TripActivity : AppCompatActivity() {
         val avgKmh = if (s.movingTimeMs > 0) (s.distanceMeters / (s.movingTimeMs / 1000.0)) * 3.6 else 0.0
         avgView.text = "${avgKmh.toInt()} km/h"
         startBtn.text = if (s.recording) getString(R.string.trip_pause) else getString(R.string.trip_start)
+        startBtn.setIconResource(if (s.recording) R.drawable.ic_trip_pause else R.drawable.ic_trip_play)
     }
 
     private fun formatDuration(ms: Long): String {

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Open CfMoto</string>
+    <string name="app_name">675Link</string>
+    <!-- Launcher label. Not translatable so locale app_name overrides can't put the old name back. -->
+    <string name="app_name_675" translatable="false">675Link</string>
     <string name="about_copyright">© 2026 Alexandru</string>
     <string name="about_copyright_body">Maintained by Alexandru (zanderp). Free software under the GNU AGPL v3 or later — see LICENSE and NOTICE in the repository for the full copyright and attribution text.</string>
     <string name="about_license_body">You may use, study, share, and modify this app under the AGPL. If you redistribute a modified version (including as a network service), you must offer the complete corresponding source under the same license.</string>
@@ -280,6 +282,27 @@
     <string name="main_about_credits">About &amp; credits</string>
     <string name="main_check_for_update">Check for update</string>
     <string name="main_revamp_by_yz">Revamp by YZ</string>
+    <string name="pick_target_title">Which bike or car?</string>
+    <string name="pick_target_title_bike">Which bike?</string>
+    <string name="pick_target_msg">Choose what you are connecting to this ride.</string>
+    <string name="pick_target_bike">Motorcycle dash</string>
+    <string name="pick_target_car">Car head unit · USB</string>
+    <string name="pick_target_car_watching">Watching for the car — plug in the USB cable any time</string>
+    <string name="home_pair_hint_car">Scan the QR on the bike\'s dash to add it.</string>
+    <string name="car_usb_connected">● Car connected over USB</string>
+    <string name="car_usb_waiting">◌ Waiting for the car — plug in the USB cable</string>
+    <string name="car_usb_ready">◌ Android Auto ready — plug in the USB cable</string>
+    <string name="car_standby">Standing by — ready for the car</string>
+    <string name="home_badge_standby">Standing by</string>
+    <string name="car_step1_ready">1. Get Android Auto ready</string>
+    <string name="car_step1_stop">Stop</string>
+    <string name="car_step2_connect">2. Connect to car</string>
+    <string name="car_step2_sub_first">Do step 1 first — don\'t plug in the USB yet</string>
+    <string name="car_step2_sub_ready">Now plug in the USB cable</string>
+    <string name="car_step2_sub_connected">✓ Car connected</string>
+    <string name="car_usb_off">Not connected — tap step 1, then step 2</string>
+    <string name="home_tab_bike">Bike</string>
+    <string name="home_tab_car">Car</string>
     <string name="main_alexandru">Donate to Alexandru</string>
     <string name="main_report_a_problem">Report a problem</string>
     <string name="main_report_problem_message">Builds a shareable report with diagnostics + recent log (secrets redacted unless enabled in Setup).</string>
@@ -650,7 +673,7 @@
     <string name="home_badge_linking">Linking</string>
     <string name="home_badge_live">Live</string>
     <string name="home_badge_error">Error</string>
-    <string name="home_default_title">OpenCfMoto</string>
+    <string name="home_default_title">675Link</string>
     <string name="home_tel_phone">Phone battery</string>
     <string name="home_search_in_maps">Maps</string>
     <string name="home_free_volume">Don\'t lock volume (fixes quiet sound; handlebar ▲/▼ stop working for Android Auto)</string>
@@ -695,9 +718,16 @@
     <string name="home_perm_ok">Allowed</string>
     <string name="home_perm_missing">Not allowed</string>
     <string name="home_tel_dest">Destination</string>
+    <string name="home_tel_usbdebug">USB debugging</string>
+    <string name="home_usbdebug_on">On</string>
+    <string name="home_usbdebug_off">Off</string>
     <string name="home_dest_set">Set</string>
     <string name="home_dest_unset">Not set</string>
     <string name="home_unit_online">Online</string>
+    <string name="home_unit_restart">Needs restart</string>
+    <string name="home_hus_restart_title">Restart the head unit server</string>
+    <string name="home_hus_restart_msg">Android Auto\'s head unit server is on but not answering. Open Android Auto, tap ⋮ → Stop head unit server, then ⋮ → Start head unit server. Come back and press step 1 again.</string>
+    <string name="home_hus_restart_step">Stop, then Start the head unit server</string>
     <string name="home_unit_offline">Offline</string>
     <string name="home_tel_top_speed">Top speed</string>
     <string name="home_tel_none">—</string>
@@ -710,12 +740,14 @@
     <string name="home_sync_hr">%1$d h ago</string>
     <string name="home_connect_launch">Connect &amp; Launch Dash</string>
     <string name="home_cta_sub">Tap to start Android Auto projection on your CFMoto TFT display</string>
-    <string name="home_pair_title">Pair CFMoto TFT</string>
+    <string name="home_cta_sub_car">Step 1 gets Android Auto ready. Step 2 connects once the car USB is plugged in.</string>
+    <string name="home_pair_title">Pair new CFMoto TFT</string>
     <string name="home_scan_qr">+ Scan QR</string>
     <string name="home_dock_dash">Dash view</string>
     <string name="home_dock_controls">Controls</string>
     <string name="home_dock_map">Map</string>
     <string name="home_dock_mirror">Mirror</string>
+    <string name="home_dock_usb">USB</string>
     <string name="home_go">GO ›</string>
     <string name="home_search_hint">Search destination, GPX track, POI…</string>
     <string name="home_guide_title">• Rider field guide &amp; controls</string>
@@ -732,15 +764,30 @@
 
     <!-- Notifications -->
     <string name="notif_aa_channel">Android Auto receiver</string>
-    <string name="notif_aa_title">OpenCfMoto — Android Auto</string>
+    <string name="notif_aa_title">675Link — Android Auto</string>
     <string name="notif_aa_reconnecting">Reconnecting to the bike dash…</string>
     <string name="notif_aa_receiving">Receiving Android Auto for the bike dash — tap to open</string>
     <string name="notif_bike_reconnected">Bike reconnected</string>
     <string name="notif_tap_resume">Tap to resume projection to the dash</string>
-    <string name="notif_map_title">OpenCfMoto Map</string>
+    <string name="notif_idle_channel">Ride finished reminder</string>
+    <string name="notif_idle_title">Ride finished? Turn off the head unit</string>
+    <string name="notif_idle_text">No bike for 5 minutes. Tap Turn off, then tap Stop on Android Auto\'s \"Head unit server running\" notification to save battery.</string>
+    <string name="notif_idle_turn_off">Turn off</string>
+    <string name="notif_idle_turned_off">675Link turned off. Now tap Stop on Android Auto\'s notification.</string>
+    <string name="setup_tab_notifications">Notifications</string>
+    <string name="setup_notif_system">Android notification settings</string>
+    <string name="setup_notif_system_desc">Sound, pop-up and on/off for each 675Link notification. Notifications must be allowed for the ride finished reminder to show.</string>
+    <string name="setup_notif_system_off">Notifications are OFF for 675Link, so the ride finished reminder can\'t show. Tap below to turn them on.</string>
+    <string name="setup_notif_system_btn">Open notification settings</string>
+    <string name="setup_idle_reminder_test">Send test reminder</string>
+    <string name="setup_idle_reminder_test_sent">Test reminder sent. Check your notifications.</string>
+    <string name="setup_idle_reminder_test_blocked">Notifications are off for 675Link. Turn them on below first.</string>
+    <string name="setup_idle_reminder">Ride finished reminder</string>
+    <string name="setup_idle_reminder_desc">If the bike has been disconnected for 5 minutes after a ride, remind you to turn off 675Link and Android Auto\'s head unit server so they stop using battery. On by default.</string>
+    <string name="notif_map_title">675Link Map</string>
     <string name="notif_map_text">Map on the dash — handlebars use your button mapping</string>
     <string name="notif_mirror_channel">Screen mirroring</string>
-    <string name="notif_mirror_title">OpenCfMoto</string>
+    <string name="notif_mirror_title">675Link</string>
     <string name="notif_mirror_text">Mirroring screen to bike</string>
     <string name="notif_media_channel">Bike button control</string>
     <string name="notif_media_title">Android Auto control</string>
@@ -790,4 +837,8 @@
     <string name="setup_refresh">Refresh</string>
     <string name="setup_back">Back</string>
     <string name="setup_aa_17_4_badge">ℹ For Android Auto 17.4+</string>
+    <string name="setup_tab_setup">Setup</string>
+    <string name="setup_tab_display">Display</string>
+    <string name="setup_tab_controls">Controls</string>
+    <string name="setup_tab_connection">Connection</string>
 </resources>

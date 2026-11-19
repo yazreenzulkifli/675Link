@@ -9,7 +9,7 @@ import android.content.Context
  * Small on/off app preferences (kept apart from the video-tuning [VideoPrefs]).
  *
  *  - [autoConnect]  — on launch, if a bike is paired and its Wi-Fi is in range, start connecting
- *    automatically instead of waiting for a tap. Default on; the rider can turn it off.
+ *    automatically instead of waiting for a tap. Default off; the rider can turn it on in Setup.
  *  - [autoRecovery] — the watchdog ([AndroidAutoService]) restarts the bike link if projection
  *    stalls or the dash drops, without a manual Stop/Start. Default on.
  *  - [forceNonTouch] — never advertise a touchscreen to Android Auto (focus/knob UI). Use when
@@ -23,6 +23,7 @@ object AppSettings {
     private const val KEY_AUTO_CONNECT = "auto_connect"
     private const val KEY_AUTO_RECOVERY = "auto_recovery"
     private const val KEY_LOG_TRIPS = "log_trips"
+    private const val KEY_IDLE_REMINDER = "ride_finished_reminder"
     private const val KEY_FORCE_NON_TOUCH = "force_non_touch"
     private const val KEY_FORCE_TOUCH = "force_touch"
     private const val KEY_INCLUDE_SECRETS = "include_secrets_in_logs"
@@ -34,17 +35,24 @@ object AppSettings {
     private const val KEY_KEEP_WIFI = "keep_wifi_after_disconnect"
     private const val KEY_BT_TRIGGER_MAC = "bt_trigger_mac"
     private const val KEY_BT_TRIGGER_NAME = "bt_trigger_name"
+    private const val KEY_MAPS_MUSIC_ONLY = "maps_music_only"
+    private const val KEY_NAV_BAR_DP = "nav_bar_dp"
 
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun autoConnect(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_AUTO_CONNECT, true)
+    fun autoConnect(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_AUTO_CONNECT, false)
     fun setAutoConnect(ctx: Context, on: Boolean) =
         prefs(ctx).edit().putBoolean(KEY_AUTO_CONNECT, on).apply()
 
     fun autoRecovery(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_AUTO_RECOVERY, true)
     fun setAutoRecovery(ctx: Context, on: Boolean) =
         prefs(ctx).edit().putBoolean(KEY_AUTO_RECOVERY, on).apply()
+
+    /** "Ride finished?" reminder after 5 min with no bike link (see AndroidAutoService). On by default. */
+    fun idleReminder(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_IDLE_REMINDER, true)
+    fun setIdleReminder(ctx: Context, on: Boolean) =
+        prefs(ctx).edit().putBoolean(KEY_IDLE_REMINDER, on).apply()
 
     fun logTrips(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_LOG_TRIPS, true)
     fun setLogTrips(ctx: Context, on: Boolean) =
@@ -150,7 +158,23 @@ object AppSettings {
             .apply()
     }
 
+    /** Maps + music only: hide AA's nav bar / app list and make Home toggle Maps ⇄ Music. */
+    fun mapsMusicOnly(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_MAPS_MUSIC_ONLY, true)
+    fun setMapsMusicOnly(ctx: Context, on: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_MAPS_MUSIC_ONLY, on).apply()
+    }
+
+    /** Nav bar thickness in dp (tune if the crop leaves a sliver or eats into the map). */
+    fun navBarDp(ctx: Context): Int = prefs(ctx).getInt(KEY_NAV_BAR_DP, 76)
+    fun setNavBarDp(ctx: Context, dp: Int) {
+        prefs(ctx).edit().putInt(KEY_NAV_BAR_DP, dp.coerceIn(0, 200)).apply()
+        BikeProfileHolder.navBarDp = dp.coerceIn(0, 200)
+    }
+
     fun applyToHolder(ctx: Context) {
+        // Nav-bar crop reverted: it cut into the AA dashboard on the 800x480 dash. Song buttons stay.
+        BikeProfileHolder.hideNavBar = false
+        BikeProfileHolder.navBarDp = navBarDp(ctx)
         BikeProfileHolder.forceNonTouch = forceNonTouch(ctx)
         BikeProfileHolder.forceTouch = forceTouch(ctx)
         BikeProfileHolder.aaDpiOverride = VideoPrefs.dpiOverride(ctx)

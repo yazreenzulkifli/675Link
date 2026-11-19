@@ -7,13 +7,13 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.View
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import com.google.android.material.button.MaterialButton
 
 /** Copyright, license, credits, and project links. */
 class AboutActivity : AppCompatActivity() {
@@ -29,24 +29,14 @@ class AboutActivity : AppCompatActivity() {
         }
 
         findViewById<TextView>(R.id.about_version).text =
-            "Version ${BuildConfig.VERSION_NAME}  ·  build ${BuildConfig.VERSION_CODE}"
+            "Version ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}"
 
-        findViewById<MaterialButton>(R.id.btn_about_website).setOnClickListener {
-            openUrl(URL_WEBSITE)
-        }
-        findViewById<MaterialButton>(R.id.btn_about_github).setOnClickListener {
-            openUrl(URL_GITHUB)
-        }
-        findViewById<MaterialButton>(R.id.btn_about_discord).setOnClickListener {
-            openUrl(URL_DISCORD)
-        }
-        findViewById<MaterialButton>(R.id.btn_about_kofi).setOnClickListener {
-            openUrl(URL_KOFI)
-        }
-        findViewById<MaterialButton>(R.id.btn_about_license).setOnClickListener {
-            openUrl(URL_NOTICE)
-        }
-        findViewById<MaterialButton>(R.id.btn_about_done).setOnClickListener { finish() }
+        findViewById<View>(R.id.btn_about_website).setOnClickListener { openUrl(URL_WEBSITE) }
+        findViewById<View>(R.id.btn_about_github).setOnClickListener { openUrl(URL_GITHUB) }
+        findViewById<View>(R.id.btn_about_discord).setOnClickListener { openUrl(URL_DISCORD) }
+        findViewById<View>(R.id.btn_about_kofi).setOnClickListener { openUrl(URL_KOFI) }
+        findViewById<View>(R.id.btn_about_license).setOnClickListener { openUrl(URL_NOTICE) }
+        findViewById<View>(R.id.btn_about_back).setOnClickListener { finish() }
     }
 
     private fun openUrl(url: String) {
@@ -59,7 +49,7 @@ class AboutActivity : AppCompatActivity() {
 
     companion object {
         private const val URL_WEBSITE = "https://alexandru.rocks"
-        private const val URL_GITHUB = "https://github.com/zanderp/open-cfmoto"
+        private const val URL_GITHUB = "https://github.com/${UpdateChecker.REPO}"
         private const val URL_DISCORD = "https://discord.gg/KNTjJhmFZ6"
         const val URL_KOFI = "https://ko-fi.com/alexandrupopa"
         private const val URL_NOTICE =

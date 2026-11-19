@@ -23,7 +23,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.io.File
 
@@ -79,6 +78,11 @@ class GarageActivity : AppCompatActivity() {
             v.setPadding(b.left, b.top, b.right, b.bottom)
             insets
         }
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
+        findViewById<View>(R.id.garage_back).setOnClickListener { finish() }
         container = findViewById(R.id.garage_container)
         empty = findViewById(R.id.garage_empty)
         findViewById<View>(R.id.garage_scan).setOnClickListener {
@@ -89,6 +93,15 @@ class GarageActivity : AppCompatActivity() {
                 BikeMemory.save(this, raw, qr)
                 Toast.makeText(this, "Added ${BikeMemory.lastBikeName(this)}", Toast.LENGTH_SHORT)
                     .show()
+                refresh()
+            }
+        }
+        findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.garage_show_dummy).apply {
+            val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            visibility = if (debuggable) View.VISIBLE else View.GONE
+            setOnCheckedChangeListener { _, on ->
+                if (on == DummyBike.inGarage(this@GarageActivity)) return@setOnCheckedChangeListener
+                DummyBike.setInGarage(this@GarageActivity, on)
                 refresh()
             }
         }
@@ -104,67 +117,125 @@ class GarageActivity : AppCompatActivity() {
         val bikes = BikeMemory.devices(this)
         val selected = BikeMemory.selected(this)
         empty.visibility = if (bikes.isEmpty()) View.VISIBLE else View.GONE
+        findViewById<TextView>(R.id.garage_paired_count).text =
+            getString(R.string.garage_paired_count, bikes.size)
         for (bike in bikes) container.addView(buildCard(bike, bike.raw == selected?.raw))
+        findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.garage_show_dummy).isChecked =
+            bikes.any { it.raw == DummyBike.QR_RAW }
     }
 
     private fun buildCard(bike: SavedBike, isActive: Boolean): View {
-        val card = MaterialCardView(this).apply {
+        val ctx = this
+        val cyan = ContextCompat.getColor(ctx, R.color.home_cyan)
+        val card = android.widget.FrameLayout(ctx).apply {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(10) }
-            radius = dp(18).toFloat()
-            setCardBackgroundColor(ContextCompat.getColor(this@GarageActivity, R.color.surface))
-            setContentPadding(dp(14), dp(12), dp(14), dp(12))
+            ).apply { topMargin = dp(12) }
+            setBackgroundResource(R.drawable.garage_card_bg)
+            elevation = dp(2).toFloat()
             isClickable = true
-            if (isActive) {
-                strokeWidth = dp(2)
-                strokeColor = ContextCompat.getColor(this@GarageActivity, R.color.brand_orange)
-            }
+            isFocusable = true
             setOnClickListener { showActions(bike, isActive) }
         }
+        if (isActive) {
+            card.addView(View(ctx).apply {
+                setBackgroundResource(R.drawable.garage_accent_bar)
+            }, android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(4)
+            ).apply { marginStart = dp(24); marginEnd = dp(24) })
+        }
 
-        val row = LinearLayout(this).apply {
+        val content = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(20), dp(18), dp(16))
+        }
+
+        val row = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-
-        row.addView(ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
-            scaleType = ImageView.ScaleType.CENTER_CROP
+        row.addView(ImageView(ctx).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+            setBackgroundResource(R.drawable.garage_avatar_bg)
+            clipToOutline = true
             val bmp = bike.photoPath?.let { loadPhoto(it) }
             if (bmp != null) {
+                scaleType = ImageView.ScaleType.CENTER_CROP
                 setImageBitmap(bmp)
             } else {
+                scaleType = ImageView.ScaleType.FIT_CENTER
                 setImageResource(R.drawable.ic_ride)
-                setColorFilter(ContextCompat.getColor(this@GarageActivity, R.color.brand_orange))
-                setPadding(dp(10), dp(10), dp(10), dp(10))
+                setColorFilter(cyan)
+                setPadding(dp(11), dp(11), dp(11), dp(11))
             }
         })
 
-        val col = LinearLayout(this).apply {
+        val col = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                .apply { marginStart = dp(14) }
+                .apply { marginStart = dp(14); marginEnd = dp(8) }
         }
-        col.addView(TextView(this).apply {
+        col.addView(TextView(ctx).apply {
             text = bike.name
-            setTextColor(ContextCompat.getColor(this@GarageActivity, R.color.text_primary))
-            textSize = 17f
+            setTextColor(ContextCompat.getColor(ctx, R.color.home_text))
+            textSize = 16f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
         })
-        col.addView(TextView(this).apply {
-            text = if (isActive) "Active bike · tap to edit" else (bike.qr?.ssid ?: "tap to select or edit")
-            setTextColor(
-                ContextCompat.getColor(
-                    this@GarageActivity,
-                    if (isActive) R.color.brand_orange else R.color.text_secondary
-                )
-            )
-            textSize = 13f
+        col.addView(TextView(ctx).apply {
+            text = (bike.qr?.ssid ?: bike.raw).uppercase()
+            setTextColor(0xFF94A3B8.toInt())
+            textSize = 11f
+            letterSpacing = 0.08f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
         })
         row.addView(col)
 
-        card.addView(row)
+        row.addView(TextView(ctx).apply {
+            text = getString(if (isActive) R.string.garage_active else R.string.garage_paired)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(4), dp(10), dp(4))
+            textSize = 12f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            compoundDrawablePadding = dp(6)
+            if (isActive) {
+                setBackgroundResource(R.drawable.garage_pill_active)
+                setTextColor(0xFF059669.toInt())
+                setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.garage_dot_mint, 0, 0, 0)
+            } else {
+                setBackgroundResource(R.drawable.garage_pill_muted)
+                setTextColor(0xFF64748B.toInt())
+            }
+        })
+        content.addView(row)
+
+        val edit = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(14) }
+        }
+        edit.addView(TextView(ctx).apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            text = getString(if (isActive) R.string.garage_tap_to_edit else R.string.garage_tap_to_select)
+            setTextColor(0xFF94A3B8.toInt())
+            textSize = 12f
+        })
+        edit.addView(ImageView(ctx).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(28), dp(28))
+            setBackgroundResource(R.drawable.garage_chevron_bg)
+            setImageResource(R.drawable.ic_trip_chevron)
+            setColorFilter(0xFF94A3B8.toInt())
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        })
+        content.addView(edit)
+
+        card.addView(content)
         return card
     }
 

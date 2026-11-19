@@ -15,7 +15,8 @@ import java.net.URL
  */
 object UpdateChecker {
 
-    const val REPO = "zanderp/open-cfmoto"
+    /** 675Link fork: updates come from this repo's GitHub Releases (not upstream open-cfmoto). */
+    const val REPO = "yazreenzulkifli/675Link"
 
     private const val API = "https://api.github.com/repos/$REPO/releases/latest"
     private const val PREF = "updates"
@@ -47,7 +48,7 @@ object UpdateChecker {
             connectTimeout = 8000
             readTimeout = 8000
             setRequestProperty("Accept", "application/vnd.github+json")
-            setRequestProperty("User-Agent", "OpenCfMoto")
+            setRequestProperty("User-Agent", "675Link")
         }
         try {
             if (conn.responseCode != 200) null else {

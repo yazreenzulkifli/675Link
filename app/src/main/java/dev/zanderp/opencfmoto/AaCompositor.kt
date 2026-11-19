@@ -70,6 +70,12 @@ class AaCompositor(private val log: (String) -> Unit) {
     // margins are advertised: AA draws its UI into a sub-rect, so we sample only that region.
     @Volatile private var cropU = 1f
     @Volatile private var cropV = 1f
+    // Extra crop (fractions of the coded frame) taken off the left / bottom of the usable area to hide
+    // Android Auto's nav bar. srcOffX is the left crop in source pixels, added back to mapped touches.
+    @Volatile private var navL = 0f
+    @Volatile private var navB = 0f
+    @Volatile private var srcOffX = 0
+    private var uNav = 0
     private lateinit var surfaceTexture: SurfaceTexture
 
     /** Where the AA decoder renders. Valid after [start]. */
@@ -140,6 +146,8 @@ class AaCompositor(private val log: (String) -> Unit) {
                     val m = BikeProfileHolder.aaContentMargins
                     cropU = ((spec.width - m.marginW).toFloat() / spec.width).coerceIn(0.05f, 1f)
                     cropV = ((spec.height - m.marginH).toFloat() / spec.height).coerceIn(0.05f, 1f)
+                    navL = BikeProfileHolder.navCropLeft.toFloat() / spec.width
+                    navB = BikeProfileHolder.navCropBottom.toFloat() / spec.height
                 }
                 surfaceTexture = SurfaceTexture(textureId)
                 surfaceTexture.setDefaultBufferSize(bufW, bufH)
@@ -178,9 +186,10 @@ class AaCompositor(private val log: (String) -> Unit) {
     }
 
     /** Point the compositor at the encoder's input surface, sized to the bike canvas. */
-    fun setOutput(encoderSurface: Surface, cw: Int, ch: Int, sw: Int, sh: Int, fit: ScreenFit) {
+    fun setOutput(encoderSurface: Surface, cw: Int, ch: Int, sw: Int, sh: Int, fit: ScreenFit, offX: Int = 0) {
         handler.post {
             try {
+                srcOffX = offX
                 if (windowSurface != EGL14.EGL_NO_SURFACE) {
                     EGL14.eglDestroySurface(eglDisplay, windowSurface)
                     windowSurface = EGL14.EGL_NO_SURFACE
@@ -258,7 +267,7 @@ class AaCompositor(private val log: (String) -> Unit) {
      */
     private fun computePreviewRect() {
         if (previewW == 0 || previewH == 0 || bufW == 0 || bufH == 0) return
-        val srcAspect = (bufW * cropU) / (bufH * cropV)
+        val srcAspect = (bufW * (cropU - navL)) / (bufH * (cropV - navB))
         val viewAspect = previewW.toFloat() / previewH
         if (srcAspect < viewAspect) {           // source narrower → fit height, bars left/right
             ppH = previewH; ppW = Math.round(previewH * srcAspect)
@@ -285,7 +294,7 @@ class AaCompositor(private val log: (String) -> Unit) {
         if (rx < 0 || ry < 0 || rx >= vpW || ry >= vpH) return null
         val sx = (rx.toLong() * srcW / vpW).toInt().coerceIn(0, srcW - 1)
         val sy = (ry.toLong() * srcH / vpH).toInt().coerceIn(0, srcH - 1)
-        return sx to sy
+        return (sx + srcOffX) to sy
     }
 
     /**
@@ -334,10 +343,12 @@ class AaCompositor(private val log: (String) -> Unit) {
      * match-panel-aspect margins are advertised. Crop is **centered** (see `uCrop` shader).
      * 1,1 = whole frame (default).
      */
-    fun setSourceCrop(cu: Float, cv: Float) {
+    fun setSourceCrop(cu: Float, cv: Float, nl: Float = 0f, nb: Float = 0f) {
         handler.post {
             cropU = cu.coerceIn(0.05f, 1f)
             cropV = cv.coerceIn(0.05f, 1f)
+            navL = nl.coerceIn(0f, cropU - 0.05f)
+            navB = nb.coerceIn(0f, cropV - 0.05f)
             computePreviewRect()
             if (hasContent) drawFrame()
         }
@@ -441,6 +452,7 @@ class AaCompositor(private val log: (String) -> Unit) {
 
         GLES20.glUniformMatrix4fv(uTexMatrix, 1, false, texMatrix, 0)
         GLES20.glUniform2f(uCrop, cropU, cropV)
+        GLES20.glUniform2f(uNav, navL, navB)
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textureId)
@@ -505,6 +517,7 @@ class AaCompositor(private val log: (String) -> Unit) {
         val vs = """
             uniform mat4 uTexMatrix;
             uniform vec2 uCrop;
+            uniform vec2 uNav;
             attribute vec4 aPosition;
             attribute vec4 aTexCoord;
             varying vec2 vTexCoord;
@@ -513,8 +526,9 @@ class AaCompositor(private val log: (String) -> Unit) {
                 // AA splits margin_width/height evenly (DHU: marginwidth 280 → 140+140), so its UI is
                 // CENTERED inside the coded frame. Sample the centered usable region on both axes; the
                 // (1-crop)*0.5 offset is symmetric, so SurfaceTexture's y-flip needs no special case.
-                float u = (1.0 - uCrop.x) * 0.5 + aTexCoord.x * uCrop.x;
-                float v = (1.0 - uCrop.y) * 0.5 + aTexCoord.y * uCrop.y;
+                // uNav trims the nav bar off the left / bottom (v=0 is the image bottom pre-matrix).
+                float u = (1.0 - uCrop.x) * 0.5 + uNav.x + aTexCoord.x * (uCrop.x - uNav.x);
+                float v = (1.0 - uCrop.y) * 0.5 + uNav.y + aTexCoord.y * (uCrop.y - uNav.y);
                 vTexCoord = (uTexMatrix * vec4(u, v, aTexCoord.z, aTexCoord.w)).xy;
             }
         """.trimIndent()
@@ -530,6 +544,7 @@ class AaCompositor(private val log: (String) -> Unit) {
         aTexCoord = GLES20.glGetAttribLocation(program, "aTexCoord")
         uTexMatrix = GLES20.glGetUniformLocation(program, "uTexMatrix")
         uCrop = GLES20.glGetUniformLocation(program, "uCrop")
+        uNav = GLES20.glGetUniformLocation(program, "uNav")
         Matrix.setIdentityM(texMatrix, 0)
 
         val ids = IntArray(1)
@@ -539,8 +554,7 @@ class AaCompositor(private val log: (String) -> Unit) {
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
-        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-    }
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)    }
 
     private fun linkProgram(vsSrc: String, fsSrc: String): Int {
         val vs = compileShader(GLES20.GL_VERTEX_SHADER, vsSrc)

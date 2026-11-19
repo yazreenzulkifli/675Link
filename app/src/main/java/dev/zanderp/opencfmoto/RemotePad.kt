@@ -30,7 +30,8 @@ object RemotePad {
     fun consume(ctx: Context, event: KeyEvent): Boolean {
         teachListener?.let { if (it(event)) return true }
         if (!enabled(ctx)) return false
-        if (!ButtonMode.isControlAa(ctx)) return false
+        // A HID pad is its own device — it never needs the media-session capture (which also
+        // grabs the intercom), so it works whether handlebar capture is on or off.
         if (!isExternalPad(event)) return false
         if (event.action != KeyEvent.ACTION_DOWN && event.action != KeyEvent.ACTION_UP) return false
         if (event.repeatCount > 0 && event.action == KeyEvent.ACTION_DOWN) return true

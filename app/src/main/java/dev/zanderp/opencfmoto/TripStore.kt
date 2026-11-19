@@ -41,6 +41,12 @@ object TripStore {
         return files.mapNotNull { parse(it) }.sortedByDescending { it.start }
     }
 
+    /** Most recent saved trip, parsing only one file (cheap enough for the home screen). */
+    fun latest(ctx: Context): Trip? {
+        val files = dir(ctx).listFiles { f -> f.name.endsWith(".json") } ?: return null
+        return files.sortedByDescending { it.lastModified() }.firstNotNullOfOrNull { parse(it) }
+    }
+
     fun get(ctx: Context, id: String): Trip? {
         val f = File(dir(ctx), "$id.json")
         return if (f.exists()) parse(f) else null

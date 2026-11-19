@@ -61,9 +61,27 @@ class AndroidAutoService : Service() {
     private var wifiDownSince = 0L
     private var watchdogStarted = false
 
+    // "Ride finished?" reminder: when the bike link has been gone this long after a ride.
+    private var idleSince = 0L
+    private var idleReminderShown = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_IDLE_TURN_OFF) {
+            // Reminder "Turn off": stop everything AND close the app's screens, so the rider sees it
+            // actually went away (a bare Stop left the app open and looked like nothing happened).
+            LogBus.log("[AA] ride-finished reminder: Turn off tapped — stopping and closing 675Link")
+            cancelIdleReminder()
+            active = this
+            try {
+                (getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager)
+                    .appTasks.forEach { it.finishAndRemoveTask() }
+            } catch (_: Exception) {}
+            android.widget.Toast.makeText(this, R.string.notif_idle_turned_off, android.widget.Toast.LENGTH_SHORT).show()
+            fullTeardown()
+            return START_NOT_STICKY
+        }
         active = this
         when (intent?.action) {
             // Notification "Stop" — same full teardown as the main screen's Stop button.
@@ -118,6 +136,7 @@ class AndroidAutoService : Service() {
                 try { tickWatchdog() } catch (_: Exception) {}
                 try { adaptive.onTick(pipeline) } catch (_: Exception) {}
                 try { tickTripLogging() } catch (_: Exception) {}
+                try { tickIdleReminder() } catch (_: Exception) {}
                 watchdogHandler.postDelayed(this, WATCHDOG_TICK_MS)
             }
         }, WATCHDOG_TICK_MS)
@@ -130,6 +149,34 @@ class AndroidAutoService : Service() {
     private fun tickTripLogging() {
         TripAutoLog.sync(this)
     }
+
+    /**
+     * After a ride, the service can sit "Waiting for bike" for hours (or keep transcoding when the
+     * bike Wi-Fi is kept / a USB car is unplugged), draining the phone. Once the dash link has been
+     * gone for [IDLE_REMINDER_MS] after at least one connection, post one alerting reminder with
+     * Turn off / Keep on. Reconnecting to the bike clears it and re-arms it for the next stop.
+     */
+    private fun tickIdleReminder() {
+        val phase = ConnectionState.phase
+        if (phase == Phase.STREAMING || phase == Phase.MIRRORING) {
+            idleSince = 0L
+            if (idleReminderShown) { idleReminderShown = false; cancelIdleReminder() }
+            return
+        }
+        if (!sawStream) return   // still setting up the first connection — not a finished ride
+        if (!AppSettings.idleReminder(this)) return   // turned off in Setup
+        val now = System.currentTimeMillis()
+        if (idleSince == 0L) { idleSince = now; return }
+        if (!idleReminderShown && now - idleSince >= IDLE_REMINDER_MS) {
+            idleReminderShown = true
+            LogBus.log("[AA] no bike link for ${IDLE_REMINDER_MS / 60_000} min — posting ride-finished reminder")
+            postIdleReminder()
+        }
+    }
+
+    private fun postIdleReminder() { postIdleReminder(this) }
+
+    private fun cancelIdleReminder() { cancelIdleReminder(this) }
 
     private fun tickWatchdog() {
         if (!AppSettings.autoRecovery(this)) return
@@ -681,6 +728,7 @@ class AndroidAutoService : Service() {
         aaParked = false
         if (active === this) active = null
         watchdogHandler.removeCallbacksAndMessages(null)
+        cancelIdleReminder()
         try { TripAutoLog.sync(this) } catch (_: Exception) {}
         try { mediaButtons?.stop() } catch (_: Exception) {}
         mediaButtons = null
@@ -719,12 +767,69 @@ class AndroidAutoService : Service() {
         private const val ERROR_COOLDOWN_MS = 20_000L  // min gap between re-arm attempts after ERROR
         private const val GRACE_MS = 180_000L          // SoftAP blinks; 60s was parking mid-ride
         private const val RESUME_STEADY_TIMEOUT_MS = 12_000L // wait for AA video before falling back
+        private const val IDLE_REMINDER_MS = 5 * 60_000L     // no bike this long after a ride → remind
+        private const val IDLE_NOTIF_ID = 5   // 2 = AA, 3 = MediaButtonBridge, 4 = WifiGate
+        private const val IDLE_CHANNEL_ID = "opencfmoto_idle_reminder"
+        private const val ACTION_IDLE_TURN_OFF = "dev.zanderp.opencfmoto.ACTION_IDLE_TURN_OFF"
+
+        /**
+         * Post the "Ride finished?" reminder. Called by the service after [IDLE_REMINDER_MS] with no
+         * bike, and by Setup's "Send test reminder" button. @return false if it could not be posted.
+         */
+        fun postIdleReminder(ctx: Context): Boolean {
+            return try {
+                val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                nm.createNotificationChannel(
+                    NotificationChannel(
+                        IDLE_CHANNEL_ID, ctx.getString(R.string.notif_idle_channel), NotificationManager.IMPORTANCE_HIGH,
+                    ),
+                )
+                val open = Intent(ctx, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    putExtra(EXTRA_SHOW_HU_STOP, true)
+                }
+                val openPi = PendingIntent.getActivity(ctx, 3, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                val offPi = PendingIntent.getService(
+                    ctx, 4, Intent(ctx, AndroidAutoService::class.java).setAction(ACTION_IDLE_TURN_OFF),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                )
+                val text = ctx.getString(R.string.notif_idle_text)
+                val n = Notification.Builder(ctx, IDLE_CHANNEL_ID)
+                    .setContentTitle(ctx.getString(R.string.notif_idle_title))
+                    .setContentText(text)
+                    .setStyle(Notification.BigTextStyle().bigText(text))
+                    .setSmallIcon(android.R.drawable.ic_menu_compass)
+                    .setContentIntent(openPi)
+                    .setAutoCancel(true)
+                    .setCategory(Notification.CATEGORY_REMINDER)
+                    .addAction(
+                        Notification.Action.Builder(
+                            Icon.createWithResource(ctx, R.drawable.ic_stop), ctx.getString(R.string.notif_idle_turn_off), offPi,
+                        ).build(),
+                    )
+                    .build()
+                nm.notify(IDLE_NOTIF_ID, n)
+                true
+            } catch (e: Exception) {
+                LogBus.log("[AA] ride-finished reminder failed: $e")
+                false
+            }
+        }
+
+        fun cancelIdleReminder(ctx: Context) {
+            try {
+                (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(IDLE_NOTIF_ID)
+            } catch (_: Exception) {}
+        }
 
         internal fun bikeTransportConnected(apConnected: Boolean, p2pConnected: Boolean): Boolean =
             apConnected || p2pConnected
 
         /** Intent extra: MainActivity should re-project on open (BAL-safe resume after a park). */
         const val EXTRA_RESUME = "dev.zanderp.opencfmoto.RESUME_PROJECTION"
+
+        /** Intent extra: MainActivity should show the "Stop head unit server" guide (reminder tapped). */
+        const val EXTRA_SHOW_HU_STOP = "dev.zanderp.opencfmoto.SHOW_HU_STOP"
 
         @Volatile var isRunning = false
             private set

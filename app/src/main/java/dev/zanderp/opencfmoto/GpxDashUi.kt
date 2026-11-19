@@ -66,6 +66,7 @@ class GpxDashUi(
     private var compassListener: SensorEventListener? = null
     private var released = false
     private val lapTimer = LapTimer()
+    private var gmapsListener: ((GmapsNav.Turn?) -> Unit)? = null
 
     /**
      * Inflate-ready [root] must be [R.layout.presentation_gpx].
@@ -2135,6 +2136,108 @@ class GpxDashUi(
             log("[GPX] handlebar focus nav armed (ButtonMap → Map)")
         }
 
+        // ---- Google Maps turn card (free ride + Google Maps navigating on the phone) ----
+        // The map keeps following the rider underneath; Google Maps does the routing and voice.
+        run {
+            if (!BuildConfig.GMAPS_TURNS) return@run   // lab build only (needs notification access)
+            val host = root as? FrameLayout ?: return@run
+            val d = context.resources.displayMetrics.density
+            fun px(v: Int) = (v * d).toInt()
+            val gIcon = ImageView(context).apply {
+                layoutParams = LinearLayout.LayoutParams(px(64), px(64))
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                contentDescription = "Next maneuver (Google Maps)"
+            }
+            val gDist = TextView(context).apply {
+                setTextColor(0xFFFFFFFF.toInt())
+                textSize = 32f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                maxLines = 1
+            }
+            val gText = TextView(context).apply {
+                setTextColor(0xFF8AB4F8.toInt())
+                textSize = 20f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                maxWidth = (context.resources.displayMetrics.widthPixels * 0.62f).toInt()
+            }
+            val gEta = TextView(context).apply {
+                setTextColor(0xFFC8D0D8.toInt())
+                textSize = 15f
+                maxLines = 1
+            }
+            val gCard = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setBackgroundResource(R.drawable.bg_nav_card)
+                setPadding(px(16), px(10), px(18), px(10))
+                visibility = View.GONE
+                addView(gIcon)
+                addView(
+                    LinearLayout(context).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(px(14), 0, 0, 0)
+                        addView(gDist)
+                        addView(gText)
+                        addView(gEta)
+                    },
+                )
+            }
+            host.addView(
+                gCard,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.TOP or Gravity.CENTER_HORIZONTAL,
+                ).apply { topMargin = insetT + px(8) },
+            )
+            var shown = false
+            var loggedFirst = false
+            val l: (GmapsNav.Turn?) -> Unit = { turn ->
+                main.post {
+                    if (released || !isAlive()) return@post
+                    val fresh = turn != null &&
+                        System.currentTimeMillis() - turn.updatedAtMs < 120_000L
+                    val show = fresh && liveMode == GpxSession.Mode.FREE_RIDE && !inPreview
+                    if (show && turn != null) {
+                        if (turn.icon != null) gIcon.setImageBitmap(turn.icon)
+                        else gIcon.setImageResource(turn.iconRes)
+                        gDist.text = turn.distance ?: ""
+                        gDist.visibility = if (turn.distance.isNullOrBlank()) View.GONE else View.VISIBLE
+                        gText.text = turn.instruction
+                        gEta.text = listOfNotNull(
+                            turn.eta?.let { if (it.any(Char::isLetter)) it else "Arrive $it" },
+                            "Google Maps",
+                        ).joinToString(" · ")
+                        (gCard.layoutParams as? FrameLayout.LayoutParams)?.let { lp ->
+                            if (lp.topMargin != insetT + px(8)) {
+                                lp.topMargin = insetT + px(8)
+                                gCard.layoutParams = lp
+                            }
+                        }
+                        gCard.visibility = View.VISIBLE
+                        gCard.bringToFront()
+                        searchPill.visibility = View.GONE
+                        if (!loggedFirst) {
+                            loggedFirst = true
+                            log("[GMAPS] dash card live: ${turn.distance ?: "—"} · ${turn.instruction}")
+                        }
+                        shown = true
+                    } else if (shown) {
+                        shown = false
+                        gCard.visibility = View.GONE
+                        refreshChrome()
+                    }
+                }
+            }
+            gmapsListener = l
+            GmapsNav.addListener(l)
+            if (!GmapsNav.isAccessGranted(context)) {
+                log("[GMAPS] notification access off — Google Maps turns won't show on the dash")
+            }
+        }
+
         log(
             "[GPX] dash map — mode=$liveMode " +
                 "pts=${track?.points?.size ?: 0} wpt=${track?.waypoints?.size ?: 0} " +
@@ -2774,6 +2877,8 @@ class GpxDashUi(
         if (released) return
         released = true
         lapTimer.stop()
+        gmapsListener?.let { GmapsNav.removeListener(it) }
+        gmapsListener = null
         MapInputBridge.clear()
         DashRemote.setHandler(null)
         main.removeCallbacksAndMessages(null)

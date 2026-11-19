@@ -57,7 +57,13 @@ object BikeMemory {
         val list = devices(ctx)
         if (list.isEmpty()) return null
         val sel = prefs(ctx).getString(KEY_SELECTED, null)
-        return list.firstOrNull { it.raw == sel } ?: list.first()
+        // The dummy bike (debug test tool) is never the fallback — only when picked in the Garage.
+        return list.firstOrNull { it.raw == sel } ?: list.firstOrNull { it.raw != DummyBike.QR_RAW }
+    }
+
+    /** Forget the explicit choice (Connect falls back to the most recent real bike, or none). */
+    fun clearSelection(ctx: Context) {
+        prefs(ctx).edit().remove(KEY_SELECTED).apply()
     }
 
     /** Persist (or move-to-front) the QR we just connected with, and select it. Keeps any custom

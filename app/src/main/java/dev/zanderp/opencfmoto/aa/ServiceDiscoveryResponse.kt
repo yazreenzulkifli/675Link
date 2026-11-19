@@ -111,6 +111,16 @@ class ServiceDiscoveryResponse
                 }.build()
             }.build())
 
+            // --- Navigation status (ImageCodesOnly: no bitmaps, just guidance start/stop) so the
+            //     home screen knows whether Maps has a route. Read-only; we never reply with data. ---
+            services.add(Control.Service.newBuilder().also { service ->
+                service.id = Channel.ID_NAV
+                service.navigationStatusService = Control.Service.NavigationStatusService.newBuilder().also { n ->
+                    n.minimumIntervalMs = 1000
+                    n.type = Control.Service.NavigationStatusService.ClusterType.ImageCodesOnly
+                }.build()
+            }.build())
+
             // --- Microphone service (required for AA connection / Assistant) ---
             services.add(Control.Service.newBuilder().also { service ->
                 service.id = Channel.ID_MIC

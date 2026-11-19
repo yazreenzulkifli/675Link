@@ -134,4 +134,41 @@ object BluetoothHelper {
             })
         }
     }
+
+    /**
+     * Names of bike dashes (TFT) currently connected to the phone for Bluetooth *audio* (A2DP media
+     * or HFP calls). Rider choice "TFT on Wi‑Fi only": the dash then shouldn't carry audio or set
+     * the volume — the intercom does sound. Matches CFMOTO/CFDL names or [extraNames] (e.g. the
+     * bike's Wi‑Fi SSID). Async: profile proxies connect on the main thread; [done] gets the list.
+     */
+    fun tftAudioConnections(context: Context, extraNames: List<String>, done: (List<String>) -> Unit) {
+        if (!hasConnectPermission(context)) { done(emptyList()); return }
+        val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
+        if (adapter == null || !adapter.isEnabled) { done(emptyList()); return }
+        fun isTft(name: String?): Boolean {
+            val n = name ?: return false
+            return n.contains("CFMOTO", true) || n.contains("CF MOTO", true) || n.contains("CFDL", true) ||
+                extraNames.any { it.isNotBlank() && n.equals(it, true) }
+        }
+        val found = linkedSetOf<String>()
+        var pending = 2
+        val finish = { synchronized(found) { pending--; if (pending == 0) done(found.toList()) } }
+        for (profile in intArrayOf(BluetoothProfile.A2DP, BluetoothProfile.HEADSET)) {
+            val ok = try {
+                adapter.getProfileProxy(context, object : BluetoothProfile.ServiceListener {
+                    override fun onServiceConnected(p: Int, proxy: BluetoothProfile) {
+                        try {
+                            proxy.connectedDevices.forEach { d -> if (isTft(d.name)) synchronized(found) { found.add(d.name) } }
+                        } catch (_: SecurityException) {
+                        } finally {
+                            try { adapter.closeProfileProxy(p, proxy) } catch (_: Exception) {}
+                            finish()
+                        }
+                    }
+                    override fun onServiceDisconnected(p: Int) {}
+                }, profile)
+            } catch (_: SecurityException) { false }
+            if (!ok) finish()
+        }
+    }
 }

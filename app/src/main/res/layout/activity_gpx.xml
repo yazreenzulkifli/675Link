@@ -70,8 +70,32 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="@string/gpx_map_on_phone" 
+                    android:text="@string/gpx_map_on_phone"
                     android:minHeight="48dp"/>
+
+                <!-- Debug builds only (shown in code): fake Google Maps turns on the map. -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/gpx_demo_gmaps"
+                    style="@style/Widget.OpenCfMoto.Button.Tonal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Demo: Google Maps turns"
+                    android:visibility="gone"
+                    android:minHeight="48dp"
+                    tools:ignore="HardcodedText" />
+
+                <!-- Debug builds only: fake dash on 127.0.0.1 (DummyBike). -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/gpx_dummy_bike"
+                    style="@style/Widget.OpenCfMoto.Button.Tonal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Dummy bike (test)"
+                    android:visibility="gone"
+                    android:minHeight="48dp"
+                    tools:ignore="HardcodedText" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

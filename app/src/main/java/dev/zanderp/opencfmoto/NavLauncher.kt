@@ -112,6 +112,36 @@ object NavLauncher {
         return false
     }
 
+    /**
+     * Open the Google Maps app itself (the nav app Android Auto uses), no destination. Android has
+     * no API to read which nav app Android Auto prefers, so this targets Google Maps.
+     * @return false if Maps isn't installed / couldn't start.
+     */
+    fun openMaps(context: Context): Boolean {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0")).setPackage(MAPS_PKG)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try {
+            context.startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** Open Google Maps with [query] typed into its search, so Maps shows its own suggestions/results. */
+    fun searchInMaps(context: Context, query: String): Boolean {
+        val q = query.trim()
+        if (q.isEmpty()) return openMaps(context)
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(q)}"))
+            .setPackage(MAPS_PKG).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try {
+            context.startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     /** Send the user to the system page where "Display over other apps" can be granted. */
     fun overlayPermissionIntent(context: Context) =
         Intent(

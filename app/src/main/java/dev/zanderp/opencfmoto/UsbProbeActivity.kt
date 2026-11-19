@@ -104,6 +104,44 @@ class UsbProbeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Test without the real car: gets Android Auto ready as usual, then a fake car (the in-app dummy
+     * dash) connects to the same local servers the USB bridge normally relays the car's streams to,
+     * and shows the video. It proves the Android Auto + status side; the USB cable layer itself still
+     * needs the real car.
+     */
+    private fun startDummyCar() {
+        UsbCarLink.log("dummy car: getting Android Auto ready, then a fake car will connect to the local servers …")
+        if (!androidAutoAlreadyStarting()) UsbCarStart.start(this)
+        startActivity(Intent(this, DummyDashActivity::class.java).putExtra("car", true))
+        kotlin.concurrent.thread(name = "dummy-car", isDaemon = true) {
+            val start = System.currentTimeMillis()
+            var forced = false
+            while (System.currentTimeMillis() - start < 60_000 && BikeLink.prober?.isLoopbackUp != true) {
+                try { Thread.sleep(500) } catch (_: InterruptedException) { return@thread }
+                // No Android Auto video after ~10 s (e.g. an emulator): bring the local servers up
+                // anyway so the fake car can still run the handshake. No real video in that case.
+                if (!forced && System.currentTimeMillis() - start > 10_000) {
+                    forced = true
+                    UsbCarLink.log("dummy car: Android Auto has no video — starting the local servers anyway (handshake test only)")
+                    try {
+                        val p = BikeLink.prober ?: EasyConnProber(applicationContext, LogBus::log).also { BikeLink.prober = it }
+                        p.startLoopback()
+                        UsbCarLink.localReady()
+                    } catch (e: Exception) {
+                        UsbCarLink.log("dummy car: could not start the local servers: $e")
+                    }
+                }
+            }
+            if (BikeLink.prober?.isLoopbackUp == true) {
+                UsbCarLink.log("dummy car: local servers are up — connecting the fake car")
+                DummyBike.connectAsCar()
+            } else {
+                UsbCarLink.log("dummy car: Android Auto never got ready (waited 60 s) — nothing to connect to")
+            }
+        }
+    }
+
     /** Android Auto is already coming up (or up): don't tear it down and start over. */
     private fun androidAutoAlreadyStarting(): Boolean {
         if (!AndroidAutoService.isRunning) return false
@@ -171,6 +209,7 @@ class UsbProbeActivity : AppCompatActivity() {
         ))
         root.addView(row(
             getString(R.string.usb_probe_settings) to { startActivity(Intent(this, UsbSetupActivity::class.java)) },
+            "Dummy car (test without the car)" to { startDummyCar() },
         ))
 
         logView = TextView(this).apply {

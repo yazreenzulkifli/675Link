@@ -104,8 +104,63 @@
             android:textColor="@color/home_text_2"
             android:textSize="14sp" />
 
+        <!-- Category tabs: one category visible at a time -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:overScrollMode="never"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/tab_setup"
+                    style="@style/Widget.OpenCfMoto.HomeLight.Pill"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/setup_tab_setup" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/tab_display"
+                    style="@style/Widget.OpenCfMoto.HomeLight.Pill"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/setup_tab_display" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/tab_controls"
+                    style="@style/Widget.OpenCfMoto.HomeLight.Pill"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/setup_tab_controls" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/tab_connection"
+                    style="@style/Widget.OpenCfMoto.HomeLight.Pill"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/setup_tab_connection" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/tab_notifications"
+                    style="@style/Widget.OpenCfMoto.HomeLight.Pill"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/setup_tab_notifications" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
         <!-- ===== Get started ===== -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_start"
             style="@style/Card.OpenCfMoto.HomeLight"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -343,6 +398,7 @@
 
         <!-- ===== Screen & display ===== -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_display"
             style="@style/Card.OpenCfMoto.HomeLight"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -935,6 +991,7 @@
 
         <!-- ===== Battery ===== -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_battery"
             style="@style/Card.OpenCfMoto.HomeLight"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -1021,6 +1078,7 @@
 
         <!-- ===== Handlebar ===== -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_handlebar"
             style="@style/Card.OpenCfMoto.HomeLight"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -1242,6 +1300,7 @@
 
         <!-- ===== Bluetooth (handlebar buttons & calls) ===== -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_bluetooth"
             style="@style/Card.OpenCfMoto.HomeLight"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -1302,6 +1361,7 @@
 
         <!-- ===== Startup & recovery ===== -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_startup"
             style="@style/Card.OpenCfMoto.HomeLight"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -1512,8 +1572,114 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- ===== Notifications ===== -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_notifications"
+            style="@style/Card.OpenCfMoto.HomeLight"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/setup_tab_notifications"
+                    android:textColor="@color/home_text_2"
+                    android:textAllCaps="true"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:letterSpacing="0.08" />
+
+                <!-- Ride-finished reminder -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="@string/setup_idle_reminder"
+                    android:textColor="@color/home_text"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="6dp"
+                    android:text="@string/setup_idle_reminder_desc"
+                    android:textColor="@color/home_text_2"
+                    android:textSize="13sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:baselineAligned="false"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/idlereminder_on"
+                        style="@style/Widget.OpenCfMoto.Segment"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="4dp"
+                        android:layout_weight="1"
+                        android:text="@string/gpx_on" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/idlereminder_off"
+                        style="@style/Widget.OpenCfMoto.Segment"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:layout_weight="1"
+                        android:text="@string/res_off" />
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/idlereminder_test"
+                    style="@style/Widget.OpenCfMoto.Segment"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/setup_idle_reminder_test" />
+
+                <!-- Android's own notification settings for this app (sound, pop-up, per-channel) -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="@string/setup_notif_system"
+                    android:textColor="@color/home_text"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/notif_system_desc"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="8dp"
+                    android:text="@string/setup_notif_system_desc"
+                    android:textColor="@color/home_text_2"
+                    android:textSize="13sp"
+                    android:lineSpacingExtra="2dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/notif_system_btn"
+                    style="@style/Widget.OpenCfMoto.Segment"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/setup_notif_system_btn" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- ===== Wi‑Fi & logs ===== -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_wifi"
             style="@style/Card.OpenCfMoto.HomeLight"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -1742,6 +1908,7 @@
 
         <!-- ===== Supported bikes ===== -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_bikes"
             style="@style/Card.OpenCfMoto.HomeLight"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

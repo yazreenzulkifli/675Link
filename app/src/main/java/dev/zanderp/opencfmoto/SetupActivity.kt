@@ -30,6 +30,7 @@ import java.io.File
  */
 class SetupActivity : AppCompatActivity() {
 
+    private var currentTab = R.id.tab_setup
     private lateinit var step1Title: TextView
     private lateinit var step1Btn: MaterialButton
     private lateinit var step2Title: TextView
@@ -59,6 +60,32 @@ class SetupActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_setup)
+
+        // Category tabs — one group of cards visible at a time.
+        val tabGroups = linkedMapOf(
+            R.id.tab_setup to listOf(R.id.card_start, R.id.card_bikes),
+            R.id.tab_display to listOf(R.id.card_display, R.id.card_battery),
+            R.id.tab_controls to listOf(R.id.card_handlebar, R.id.card_bluetooth),
+            R.id.tab_connection to listOf(R.id.card_startup, R.id.card_wifi),
+            R.id.tab_notifications to listOf(R.id.card_notifications),
+        )
+        val allCards = tabGroups.values.flatten()
+        fun selectTab(tabId: Int) {
+            currentTab = tabId
+            allCards.forEach { findViewById<android.view.View>(it).visibility = android.view.View.GONE }
+            tabGroups[tabId]?.forEach { findViewById<android.view.View>(it).visibility = android.view.View.VISIBLE }
+            for (id in tabGroups.keys) {
+                val on = id == tabId
+                findViewById<MaterialButton>(id).apply {
+                    backgroundTintList = ColorStateList.valueOf(
+                        ContextCompat.getColor(this@SetupActivity, if (on) R.color.home_cyan else R.color.home_card))
+                    setTextColor(ContextCompat.getColor(this@SetupActivity, if (on) R.color.white else R.color.home_text))
+                }
+            }
+            findViewById<android.widget.ScrollView>(R.id.setup_root).scrollTo(0, 0)
+        }
+        for (id in tabGroups.keys) findViewById<MaterialButton>(id).setOnClickListener { selectTab(id) }
+        selectTab(savedInstanceState?.getInt(STATE_TAB) ?: R.id.tab_setup)
 
         // Draw content clear of the status/navigation bars (edge-to-edge is enforced on newer Android).
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.setup_root)) { v, insets ->
@@ -153,6 +180,25 @@ class SetupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.autoconnect_off).setOnClickListener { setAutoConnect(false) }
         findViewById<MaterialButton>(R.id.recovery_on).setOnClickListener { setAutoRecovery(true) }
         findViewById<MaterialButton>(R.id.recovery_off).setOnClickListener { setAutoRecovery(false) }
+        findViewById<MaterialButton>(R.id.idlereminder_on).setOnClickListener { setIdleReminder(true) }
+        findViewById<MaterialButton>(R.id.idlereminder_off).setOnClickListener { setIdleReminder(false) }
+        findViewById<MaterialButton>(R.id.idlereminder_test).setOnClickListener {
+            // Fires the real reminder right away (works even when the reminder is set Off), so riders
+            // can check sound / pop-up. Its Turn off button really stops projection if it's running.
+            val ok = androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled() &&
+                AndroidAutoService.postIdleReminder(this)
+            Toast.makeText(this,
+                if (ok) R.string.setup_idle_reminder_test_sent else R.string.setup_idle_reminder_test_blocked,
+                Toast.LENGTH_SHORT).show()
+        }
+        findViewById<MaterialButton>(R.id.notif_system_btn).setOnClickListener {
+            val i = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+            try { startActivity(i) } catch (_: Exception) {
+                startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.fromParts("package", packageName, null)))
+            }
+        }
         findViewById<MaterialButton>(R.id.logtrips_on).setOnClickListener { setLogTrips(true) }
         findViewById<MaterialButton>(R.id.logtrips_off).setOnClickListener { setLogTrips(false) }
         findViewById<MaterialButton>(R.id.nontouch_on).setOnClickListener { setForceNonTouch(true) }
@@ -378,6 +424,12 @@ class SetupActivity : AppCompatActivity() {
         Toast.makeText(this, "Auto-recovery ${if (on) "on" else "off"}", Toast.LENGTH_SHORT).show()
     }
 
+    private fun setIdleReminder(on: Boolean) {
+        AppSettings.setIdleReminder(this, on)
+        refreshOptions()
+        Toast.makeText(this, "Ride finished reminder ${if (on) "on" else "off"}", Toast.LENGTH_SHORT).show()
+    }
+
     private fun setLogTrips(on: Boolean) {
         AppSettings.setLogTrips(this, on)
         refreshOptions()
@@ -530,6 +582,16 @@ class SetupActivity : AppCompatActivity() {
         highlight(AppSettings.autoRecovery(this),
             R.id.recovery_on to true,
             R.id.recovery_off to false)
+        highlight(AppSettings.idleReminder(this),
+            R.id.idlereminder_on to true,
+            R.id.idlereminder_off to false)
+        // Warn when Android has notifications blocked for the app — the reminder can't show then.
+        val notifOk = androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()
+        findViewById<android.widget.TextView>(R.id.notif_system_desc).apply {
+            text = getString(if (notifOk) R.string.setup_notif_system_desc else R.string.setup_notif_system_off)
+            setTextColor(ContextCompat.getColor(this@SetupActivity,
+                if (notifOk) R.color.home_text_2 else android.R.color.holo_red_dark))
+        }
         highlight(AppSettings.logTrips(this),
             R.id.logtrips_on to true,
             R.id.logtrips_off to false)
@@ -575,6 +637,11 @@ class SetupActivity : AppCompatActivity() {
             btn.backgroundTintList = ColorStateList.valueOf(if (on) onColor else offColor)
             btn.setTextColor(if (on) onText else offText)
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(STATE_TAB, currentTab)
     }
 
     override fun onResume() {
@@ -716,6 +783,7 @@ class SetupActivity : AppCompatActivity() {
 
     companion object {
         private const val REQ_PERMS = 42
+        private const val STATE_TAB = "setup_tab"
         private const val PREFS = "opencfmoto_bike"
         private const val KEY_SEEN = "setup_seen"
 

@@ -1,0 +1,1475 @@
+diff --git a/app/src/main/java/dev/zanderp/opencfmoto/MainActivity.kt b/app/src/main/java/dev/zanderp/opencfmoto/MainActivity.kt
+index 3882c05..324cebf 100644
+--- a/app/src/main/java/dev/zanderp/opencfmoto/MainActivity.kt
++++ b/app/src/main/java/dev/zanderp/opencfmoto/MainActivity.kt
+@@ -445,16 +445,15 @@ class MainActivity : AppCompatActivity() {
+         (findViewById<View>(R.id.btn_gpx) as? MaterialButton)?.asIconTopTile(R.drawable.ic_place)
+         (findViewById<View>(R.id.btn_mirror_start) as? MaterialButton)?.asIconTopTile(R.drawable.ic_cast)
+         (findViewById<View>(R.id.btn_aa_stop) as? MaterialButton)?.setIconResource(R.drawable.ic_stop)
+-        (findViewById<View>(R.id.btn_hud_view) as? MaterialButton)?.apply {
+-            setIconResource(R.drawable.ic_cast)
+-            iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
+-            maxLines = 1
+-        }
+-        (findViewById<View>(R.id.btn_controls) as? MaterialButton)?.apply {
+-            setIconResource(R.drawable.ic_devices)
+-            iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
+-            maxLines = 1
+-        }
++        // Home redesign: orange gradient hero CTA. MaterialButton paints its own tinted background,
++        // so clear the tint and hand it the gradient drawable here (not reliable from XML).
++        (connectBtn as? MaterialButton)?.apply {
++            backgroundTintList = null
++            setBackgroundResource(R.drawable.home_cta_gradient)
++        }
++        findViewById<View>(R.id.btn_header_settings).setOnClickListener { SetupActivity.start(this) }
++        findViewById<View>(R.id.btn_header_about).setOnClickListener { AboutActivity.start(this) }
++        findViewById<View>(R.id.bike_pill).setOnClickListener { GarageActivity.start(this) }
+         // Footer 2×2 — icon + label (same pattern as Dash view / Controls).
+         fun MaterialButton.asFooterLink(iconRes: Int) {
+             setIconResource(iconRes)
+@@ -691,6 +690,8 @@ class MainActivity : AppCompatActivity() {
+         // the Connect button.
+         refreshBikeLabel()
+         renderStatus(ConnectionState.phase, ConnectionState.detail)
++        logView.removeCallbacks(homeTick)
++        logView.postDelayed(homeTick, 30_000L)
+         if (WifiGate.isWifiEnabled(this)) WifiGate.cancelNotification(this)
+         // Retry auto-connect on resume: after finishing first-run setup, or once the bike's Wi-Fi
+         // comes into range shortly after launch. Guarded so it only ever starts one attempt.
+@@ -910,6 +911,113 @@ class MainActivity : AppCompatActivity() {
+             },
+         )
+         updateButtonStates(phase)
++        renderHome(phase)
++    }
++
++    /**
++     * Home-screen chrome that mirrors [ConnectionState]: header dot, status badge, bike pill and the
++     * telemetry mini-grid. Everything shown here is real data — the bike doesn't report battery
++     * voltage over this link, so the "Phone" tile shows the phone's own battery. To feed new live
++     * values (e.g. bike telemetry), extend [HomeTelemetry] and set them here.
++     */
++    private fun renderHome(phase: Phase) {
++        val live = phase == Phase.STREAMING || phase == Phase.MIRRORING
++        if (live) lastLiveAt = System.currentTimeMillis()
++        val saved = BikeMemory.hasSaved(this)
++
++        val (badgeRes, badgeColorRes) = when {
++            phase == Phase.ERROR -> R.string.home_badge_error to R.color.status_error
++            live -> R.string.home_badge_live to R.color.accent_emerald
++            phase.busy -> R.string.home_badge_linking to R.color.accent_cyan_2
++            saved -> R.string.home_badge_paired to R.color.accent_orange
++            else -> R.string.home_badge_ready to R.color.accent_orange
++        }
++        val badgeColor = ContextCompat.getColor(this, badgeColorRes)
++        findViewById<TextView>(R.id.home_status_badge)?.apply {
++            setText(badgeRes)
++            setTextColor(badgeColor)
++        }
++        val tint = android.content.res.ColorStateList.valueOf(badgeColor)
++        findViewById<View>(R.id.home_status_dot)?.backgroundTintList = tint
++        findViewById<View>(R.id.home_status_badge_wrap)?.backgroundTintList =
++            android.content.res.ColorStateList.valueOf((badgeColor and 0x00FFFFFF) or 0x26000000)
++        findViewById<View>(R.id.home_link_dot)?.apply {
++            backgroundTintList = tint
++            animate().cancel()
++            alpha = 1f
++            if (phase.busy || live) pulse(this)
++        }
++        findViewById<TextView>(R.id.home_link_label)?.text = "· ${getString(phase.labelRes)}"
++
++        findViewById<TextView>(R.id.bike_pill)?.text =
++            BikeMemory.lastBikeName(this)?.let { "${it.uppercase()} ▾" } ?: getString(R.string.home_no_bike)
++
++        renderTelemetry(
++            HomeTelemetry(
++                phoneBatteryPct = phoneBatteryPct(),
++                linkRes = when (phase) {
++                    Phase.STREAMING, Phase.STARTING_AA, Phase.AA_VIDEO_LIVE -> R.string.home_link_aa
++                    Phase.MIRRORING -> R.string.home_link_mirror
++                    Phase.JOINING_WIFI, Phase.PXC_CONNECTING, Phase.RECONNECTING,
++                    Phase.WAITING_FOR_BIKE -> R.string.home_link_wifi
++                    else -> R.string.home_link_off
++                },
++                lastSyncAt = lastLiveAt,
++                live = live,
++            ),
++        )
++    }
++
++    /** Values for the telemetry mini-grid; hook a real state provider in by building one of these. */
++    private data class HomeTelemetry(
++        val phoneBatteryPct: Int?,
++        @androidx.annotation.StringRes val linkRes: Int,
++        val lastSyncAt: Long,
++        val live: Boolean,
++    )
++
++    private fun renderTelemetry(t: HomeTelemetry) {
++        findViewById<TextView>(R.id.tel_phone)?.text =
++            t.phoneBatteryPct?.let { "⚡ $it%" } ?: getString(R.string.home_tel_none)
++        findViewById<TextView>(R.id.tel_link)?.setText(t.linkRes)
++        findViewById<TextView>(R.id.tel_sync)?.text = when {
++            t.live -> getString(R.string.home_sync_now)
++            t.lastSyncAt <= 0L -> getString(R.string.home_tel_none)
++            else -> {
++                val mins = ((System.currentTimeMillis() - t.lastSyncAt) / 60_000L).toInt()
++                when {
++                    mins < 1 -> getString(R.string.home_sync_now)
++                    mins < 60 -> getString(R.string.home_sync_min, mins)
++                    else -> getString(R.string.home_sync_hr, mins / 60)
++                }
++            }
++        }
++    }
++
++    private fun phoneBatteryPct(): Int? = try {
++        val bm = getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
++        bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)?.takeIf { it in 0..100 }
++    } catch (_: Exception) {
++        null
++    }
++
++    /** Soft breathing pulse for the header link dot while linking / live. */
++    private fun pulse(v: View) {
++        v.animate().alpha(0.35f).setDuration(700).withEndAction {
++            v.animate().alpha(1f).setDuration(700).withEndAction {
++                val p = ConnectionState.phase
++                if (v.isAttachedToWindow && (p.busy || p == Phase.STREAMING || p == Phase.MIRRORING)) pulse(v)
++            }.start()
++        }.start()
++    }
++
++    /** Refresh "Last sync" / battery while the home screen is visible. */
++    private val homeTick = object : Runnable {
++        override fun run() {
++            if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
++            renderHome(ConnectionState.phase)
++            logView.postDelayed(this, 30_000L)
++        }
+     }
+ 
+     /** Enable actions that make sense in the current [phase]. */
+@@ -1764,5 +1872,7 @@ class MainActivity : AppCompatActivity() {
+         @Volatile private var autoConnectStarted = false
+         /** So the "idle/not-in-range" reason is logged once, not on every onResume retry. */
+         @Volatile private var autoConnectSkipLogged = false
++        /** Last time the dash was live (projecting/mirroring) — feeds the "Last sync" tile. */
++        @Volatile private var lastLiveAt = 0L
+     }
+ }
+diff --git a/app/src/main/res/animator/home_press.xml b/app/src/main/res/animator/home_press.xml
+new file mode 100644
+index 0000000..573628f
+--- /dev/null
++++ b/app/src/main/res/animator/home_press.xml
+@@ -0,0 +1,16 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Tactile press feedback for home-screen controls: a quick shrink while held. -->
++<selector xmlns:android="http://schemas.android.com/apk/res/android">
++    <item android:state_pressed="true">
++        <set>
++            <objectAnimator android:duration="90" android:propertyName="scaleX" android:valueTo="0.96" android:valueType="floatType" />
++            <objectAnimator android:duration="90" android:propertyName="scaleY" android:valueTo="0.96" android:valueType="floatType" />
++        </set>
++    </item>
++    <item>
++        <set>
++            <objectAnimator android:duration="140" android:propertyName="scaleX" android:valueTo="1.0" android:valueType="floatType" />
++            <objectAnimator android:duration="140" android:propertyName="scaleY" android:valueTo="1.0" android:valueType="floatType" />
++        </set>
++    </item>
++</selector>
+diff --git a/app/src/main/res/drawable/home_badge.xml b/app/src/main/res/drawable/home_badge.xml
+new file mode 100644
+index 0000000..e0121ef
+--- /dev/null
++++ b/app/src/main/res/drawable/home_badge.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Status badge; its tint is set in code to match the connection phase. -->
++<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
++    <corners android:radius="100dp" />
++    <solid android:color="#26FFFFFF" />
++</shape>
+diff --git a/app/src/main/res/drawable/home_card_bg.xml b/app/src/main/res/drawable/home_card_bg.xml
+new file mode 100644
+index 0000000..cc1f3f6
+--- /dev/null
++++ b/app/src/main/res/drawable/home_card_bg.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
++    <corners android:radius="20dp" />
++    <solid android:color="@color/home_card" />
++    <stroke android:width="1dp" android:color="@color/home_border" />
++</shape>
+diff --git a/app/src/main/res/drawable/home_cta_gradient.xml b/app/src/main/res/drawable/home_cta_gradient.xml
+new file mode 100644
+index 0000000..278cb41
+--- /dev/null
++++ b/app/src/main/res/drawable/home_cta_gradient.xml
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="utf-8"?>
++<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#40FFFFFF">
++    <item>
++        <shape android:shape="rectangle">
++            <corners android:radius="18dp" />
++            <gradient android:angle="0" android:startColor="@color/accent_orange" android:endColor="@color/accent_orange_2" android:centerColor="#FF7A1A" />
++        </shape>
++    </item>
++</ripple>
+diff --git a/app/src/main/res/drawable/home_dot.xml b/app/src/main/res/drawable/home_dot.xml
+new file mode 100644
+index 0000000..5612bc7
+--- /dev/null
++++ b/app/src/main/res/drawable/home_dot.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
++    <solid android:color="@android:color/white" />
++    <size android:width="8dp" android:height="8dp" />
++</shape>
+diff --git a/app/src/main/res/drawable/home_glow_cyan.xml b/app/src/main/res/drawable/home_glow_cyan.xml
+new file mode 100644
+index 0000000..45d5f5e
+--- /dev/null
++++ b/app/src/main/res/drawable/home_glow_cyan.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
++    <solid android:color="#2600E5FF" />
++    <stroke android:width="1dp" android:color="#6600E5FF" />
++</shape>
+diff --git a/app/src/main/res/drawable/home_glow_purple.xml b/app/src/main/res/drawable/home_glow_purple.xml
+new file mode 100644
+index 0000000..bd6c7c0
+--- /dev/null
++++ b/app/src/main/res/drawable/home_glow_purple.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
++    <solid android:color="#26A78BFA" />
++    <stroke android:width="1dp" android:color="#66A78BFA" />
++</shape>
+diff --git a/app/src/main/res/drawable/home_icon_btn.xml b/app/src/main/res/drawable/home_icon_btn.xml
+new file mode 100644
+index 0000000..7bb513f
+--- /dev/null
++++ b/app/src/main/res/drawable/home_icon_btn.xml
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="utf-8"?>
++<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#33FFFFFF">
++    <item>
++        <shape android:shape="oval">
++            <solid android:color="@color/home_card" />
++            <stroke android:width="1dp" android:color="@color/home_border" />
++        </shape>
++    </item>
++</ripple>
+diff --git a/app/src/main/res/drawable/home_num_badge.xml b/app/src/main/res/drawable/home_num_badge.xml
+new file mode 100644
+index 0000000..567a7ec
+--- /dev/null
++++ b/app/src/main/res/drawable/home_num_badge.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
++    <solid android:color="#26FF5A00" />
++    <stroke android:width="1dp" android:color="@color/accent_orange" />
++</shape>
+diff --git a/app/src/main/res/drawable/home_pill.xml b/app/src/main/res/drawable/home_pill.xml
+new file mode 100644
+index 0000000..bec4fd7
+--- /dev/null
++++ b/app/src/main/res/drawable/home_pill.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
++    <corners android:radius="100dp" />
++    <solid android:color="@color/home_card_high" />
++    <stroke android:width="1dp" android:color="@color/home_border" />
++</shape>
+diff --git a/app/src/main/res/drawable/home_search_bg.xml b/app/src/main/res/drawable/home_search_bg.xml
+new file mode 100644
+index 0000000..76f962b
+--- /dev/null
++++ b/app/src/main/res/drawable/home_search_bg.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
++    <corners android:radius="16dp" />
++    <solid android:color="@color/home_card" />
++    <stroke android:width="1dp" android:color="@color/home_border" />
++</shape>
+diff --git a/app/src/main/res/drawable/home_tile_bg.xml b/app/src/main/res/drawable/home_tile_bg.xml
+new file mode 100644
+index 0000000..a7fffcb
+--- /dev/null
++++ b/app/src/main/res/drawable/home_tile_bg.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
++    <corners android:radius="14dp" />
++    <solid android:color="@color/home_bg" />
++    <stroke android:width="1dp" android:color="@color/home_border" />
++</shape>
+diff --git a/app/src/main/res/drawable/ic_info.xml b/app/src/main/res/drawable/ic_info.xml
+new file mode 100644
+index 0000000..57d32e9
+--- /dev/null
++++ b/app/src/main/res/drawable/ic_info.xml
+@@ -0,0 +1,10 @@
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24"
++    android:tint="?attr/colorControlNormal">
++    <path
++        android:fillColor="@android:color/white"
++        android:pathData="M11,7h2v2h-2zM11,11h2v6h-2zM12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8z" />
++</vector>
+diff --git a/app/src/main/res/layout/activity_main.xml b/app/src/main/res/layout/activity_main.xml
+index e741acd..06ffd62 100644
+--- a/app/src/main/res/layout/activity_main.xml
++++ b/app/src/main/res/layout/activity_main.xml
+@@ -1,29 +1,38 @@
+ <?xml version="1.0" encoding="utf-8"?>
++<!--
++  Home screen — "cockpit" redesign.
++  Every id referenced by MainActivity is kept (btn_connect, btn_aa_start, status_view, …) so the
++  existing logic keeps working. New ids (home_*, tel_*, bike_pill, btn_header_*) are driven by
++  MainActivity.renderHome().
++-->
+ <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+     xmlns:app="http://schemas.android.com/apk/res-auto"
+     xmlns:tools="http://schemas.android.com/tools"
+     android:id="@+id/main"
+     android:layout_width="match_parent"
+     android:layout_height="match_parent"
+-    android:background="@color/bg"
++    android:background="@color/home_bg"
+     android:orientation="vertical"
+     tools:context=".MainActivity">
+ 
++    <!-- ===== 1. Header bar ===== -->
+     <LinearLayout
+         android:layout_width="match_parent"
+         android:layout_height="wrap_content"
+         android:gravity="center_vertical"
+         android:orientation="horizontal"
+-        android:paddingHorizontal="20dp"
+-        android:paddingTop="10dp"
++        android:paddingHorizontal="16dp"
++        android:paddingTop="12dp"
+         android:paddingBottom="10dp">
+ 
+         <ImageView
+-            android:layout_width="28dp"
+-            android:layout_height="28dp"
++            android:layout_width="36dp"
++            android:layout_height="36dp"
++            android:background="@drawable/home_num_badge"
+             android:contentDescription="OpenCfMoto"
++            android:padding="7dp"
+             android:src="@drawable/ic_ride"
+-            android:tint="@color/brand_orange" />
++            android:tint="@color/accent_orange" />
+ 
+         <LinearLayout
+             android:layout_width="0dp"
+@@ -34,25 +43,79 @@
+ 
+             <TextView
+                 android:id="@+id/brand_title"
+-                android:layout_width="match_parent"
++                android:layout_width="wrap_content"
+                 android:layout_height="wrap_content"
+-                android:letterSpacing="0.01"
++                android:background="?android:attr/selectableItemBackground"
++                android:letterSpacing="0.08"
+                 android:text="OpenCfMoto"
++                android:textAllCaps="true"
+                 android:textColor="@color/text_primary"
+-                android:textSize="20sp"
++                android:textSize="18sp"
+                 android:textStyle="bold" />
+ 
+-            <TextView
+-                android:id="@+id/brand_version"
+-                android:layout_width="match_parent"
++            <LinearLayout
++                android:layout_width="wrap_content"
+                 android:layout_height="wrap_content"
+-                android:textColor="@color/text_secondary"
+-                android:textSize="12sp"
+-                tools:text="v2.0.0" />
++                android:layout_marginTop="2dp"
++                android:gravity="center_vertical"
++                android:orientation="horizontal">
++
++                <View
++                    android:id="@+id/home_link_dot"
++                    android:layout_width="8dp"
++                    android:layout_height="8dp"
++                    android:background="@drawable/home_dot"
++                    android:backgroundTint="@color/status_idle" />
++
++                <TextView
++                    android:id="@+id/brand_version"
++                    android:layout_width="wrap_content"
++                    android:layout_height="wrap_content"
++                    android:layout_marginStart="6dp"
++                    android:fontFamily="monospace"
++                    android:textColor="@color/text_secondary"
++                    android:textSize="11sp"
++                    tools:text="v2.0.18" />
++
++                <TextView
++                    android:id="@+id/home_link_label"
++                    android:layout_width="wrap_content"
++                    android:layout_height="wrap_content"
++                    android:layout_marginStart="6dp"
++                    android:fontFamily="monospace"
++                    android:textColor="@color/text_secondary"
++                    android:textSize="11sp"
++                    tools:text="· Ready" />
++            </LinearLayout>
+         </LinearLayout>
++
++        <ImageButton
++            android:id="@+id/btn_header_about"
++            android:layout_width="44dp"
++            android:layout_height="44dp"
++            android:background="@drawable/home_icon_btn"
++            android:contentDescription="@string/home_about"
++            android:padding="11dp"
++            android:scaleType="fitCenter"
++            android:src="@drawable/ic_info"
++            android:stateListAnimator="@animator/home_press"
++            android:tint="@color/text_secondary" />
++
++        <ImageButton
++            android:id="@+id/btn_header_settings"
++            android:layout_width="44dp"
++            android:layout_height="44dp"
++            android:layout_marginStart="8dp"
++            android:background="@drawable/home_icon_btn"
++            android:contentDescription="@string/home_settings"
++            android:padding="11dp"
++            android:scaleType="fitCenter"
++            android:src="@drawable/ic_settings"
++            android:stateListAnimator="@animator/home_press"
++            android:tint="@color/text_secondary" />
+     </LinearLayout>
+ 
+-    <!-- Scrollable body — required in landscape where the chrome is taller than the screen. -->
++    <!-- Scrollable body — required in landscape where the content is taller than the screen. -->
+     <androidx.core.widget.NestedScrollView
+         android:id="@+id/main_scroll"
+         android:layout_width="match_parent"
+@@ -67,10 +130,11 @@
+             android:layout_height="wrap_content"
+             android:orientation="vertical"
+             android:paddingHorizontal="16dp"
+-            android:paddingBottom="16dp">
++            android:paddingBottom="20dp">
+ 
++            <!-- ===== 2. Connection & telemetry card ===== -->
+             <com.google.android.material.card.MaterialCardView
+-                style="@style/Card.OpenCfMoto"
++                style="@style/Card.OpenCfMoto.Home"
+                 android:layout_width="match_parent"
+                 android:layout_height="wrap_content"
+                 android:layout_marginTop="4dp">
+@@ -78,143 +142,352 @@
+                 <LinearLayout
+                     android:layout_width="match_parent"
+                     android:layout_height="wrap_content"
+-                    android:gravity="center_vertical"
+-                    android:orientation="horizontal">
+-
+-                    <ImageView
+-                        android:id="@+id/status_icon"
+-                        android:layout_width="64dp"
+-                        android:layout_height="64dp"
+-                        android:background="@drawable/bg_status_circle"
+-                        android:contentDescription="@string/main_connection_status"
+-                        android:padding="15dp"
+-                        android:src="@drawable/ic_ride"
+-                        android:tint="@color/status_idle" />
++                    android:orientation="vertical">
+ 
++                    <!-- Status badge + bike pill -->
+                     <LinearLayout
+-                        android:layout_width="0dp"
++                        android:layout_width="match_parent"
+                         android:layout_height="wrap_content"
+-                        android:layout_marginStart="16dp"
+-                        android:layout_weight="1"
+-                        android:orientation="vertical">
++                        android:gravity="center_vertical"
++                        android:orientation="horizontal">
++
++                        <LinearLayout
++                            android:id="@+id/home_status_badge_wrap"
++                            android:layout_width="wrap_content"
++                            android:layout_height="wrap_content"
++                            android:background="@drawable/home_badge"
++                            android:gravity="center_vertical"
++                            android:orientation="horizontal"
++                            android:paddingHorizontal="10dp"
++                            android:paddingVertical="5dp">
++
++                            <View
++                                android:id="@+id/home_status_dot"
++                                android:layout_width="8dp"
++                                android:layout_height="8dp"
++                                android:background="@drawable/home_dot"
++                                android:backgroundTint="@color/accent_orange" />
++
++                            <TextView
++                                android:id="@+id/home_status_badge"
++                                android:layout_width="wrap_content"
++                                android:layout_height="wrap_content"
++                                android:layout_marginStart="6dp"
++                                android:letterSpacing="0.08"
++                                android:text="@string/home_badge_ready"
++                                android:textColor="@color/accent_orange"
++                                android:textSize="11sp"
++                                android:textStyle="bold" />
++                        </LinearLayout>
++
++                        <Space
++                            android:layout_width="0dp"
++                            android:layout_height="0dp"
++                            android:layout_weight="1" />
+ 
+                         <TextView
+-                            android:id="@+id/status_view"
+-                            android:layout_width="match_parent"
++                            android:id="@+id/bike_pill"
++                            android:layout_width="wrap_content"
+                             android:layout_height="wrap_content"
+-                            android:text="@string/main_ready"
++                            android:layout_marginStart="8dp"
++                            android:background="@drawable/home_pill"
++                            android:ellipsize="end"
++                            android:fontFamily="monospace"
++                            android:maxLines="1"
++                            android:maxWidth="180dp"
++                            android:minHeight="32dp"
++                            android:gravity="center"
++                            android:paddingHorizontal="12dp"
++                            android:stateListAnimator="@animator/home_press"
++                            android:text="@string/home_no_bike"
+                             android:textColor="@color/text_primary"
+-                            android:textSize="22sp"
+-                            android:textStyle="bold" />
++                            android:textSize="12sp"
++                            tools:text="CFMOTO 800NK ▾" />
++                    </LinearLayout>
+ 
+-                        <TextView
+-                            android:id="@+id/bike_view"
+-                            android:layout_width="match_parent"
++                    <!-- Center: status icon + title + detail -->
++                    <LinearLayout
++                        android:layout_width="match_parent"
++                        android:layout_height="wrap_content"
++                        android:layout_marginTop="16dp"
++                        android:gravity="center_vertical"
++                        android:orientation="horizontal">
++
++                        <ImageView
++                            android:id="@+id/status_icon"
++                            android:layout_width="60dp"
++                            android:layout_height="60dp"
++                            android:background="@drawable/bg_status_circle"
++                            android:contentDescription="@string/main_connection_status"
++                            android:padding="14dp"
++                            android:src="@drawable/ic_ride"
++                            android:tint="@color/status_idle" />
++
++                        <LinearLayout
++                            android:layout_width="0dp"
+                             android:layout_height="wrap_content"
+-                            android:layout_marginTop="2dp"
+-                            android:text="@string/main_no_bike_paired_yet"
+-                            android:textColor="@color/text_secondary"
+-                            android:textSize="13sp" />
++                            android:layout_marginStart="14dp"
++                            android:layout_weight="1"
++                            android:orientation="vertical">
++
++                            <TextView
++                                android:id="@+id/status_view"
++                                android:layout_width="match_parent"
++                                android:layout_height="wrap_content"
++                                android:text="@string/main_ready"
++                                android:textColor="@color/text_primary"
++                                android:textSize="22sp"
++                                android:textStyle="bold" />
++
++                            <TextView
++                                android:id="@+id/bike_view"
++                                android:layout_width="match_parent"
++                                android:layout_height="wrap_content"
++                                android:layout_marginTop="2dp"
++                                android:text="@string/main_no_bike_paired_yet"
++                                android:textColor="@color/text_secondary"
++                                android:textSize="13sp" />
++                        </LinearLayout>
++                    </LinearLayout>
+ 
+-                        <ProgressBar
+-                            android:id="@+id/status_progress"
+-                            style="?android:attr/progressBarStyleHorizontal"
+-                            android:layout_width="match_parent"
++                    <ProgressBar
++                        android:id="@+id/status_progress"
++                        style="?android:attr/progressBarStyleHorizontal"
++                        android:layout_width="match_parent"
++                        android:layout_height="wrap_content"
++                        android:layout_marginTop="10dp"
++                        android:indeterminate="true"
++                        android:indeterminateTint="@color/accent_orange"
++                        android:visibility="gone" />
++
++                    <!-- Telemetry mini-grid -->
++                    <LinearLayout
++                        android:layout_width="match_parent"
++                        android:layout_height="wrap_content"
++                        android:layout_marginTop="14dp"
++                        android:baselineAligned="false"
++                        android:orientation="horizontal">
++
++                        <LinearLayout
++                            android:layout_width="0dp"
++                            android:layout_height="wrap_content"
++                            android:layout_marginEnd="4dp"
++                            android:layout_weight="1"
++                            android:background="@drawable/home_tile_bg"
++                            android:orientation="vertical"
++                            android:padding="10dp">
++
++                            <TextView
++                                style="@style/HomeTelLabel"
++                                android:text="@string/home_tel_phone" />
++
++                            <TextView
++                                android:id="@+id/tel_phone"
++                                style="@style/HomeTelValue"
++                                android:text="@string/home_tel_none"
++                                android:textColor="@color/accent_emerald"
++                                tools:text="⚡ 84%" />
++                        </LinearLayout>
++
++                        <LinearLayout
++                            android:layout_width="0dp"
++                            android:layout_height="wrap_content"
++                            android:layout_marginHorizontal="4dp"
++                            android:layout_weight="1"
++                            android:background="@drawable/home_tile_bg"
++                            android:orientation="vertical"
++                            android:padding="10dp">
++
++                            <TextView
++                                style="@style/HomeTelLabel"
++                                android:text="@string/home_tel_link" />
++
++                            <TextView
++                                android:id="@+id/tel_link"
++                                style="@style/HomeTelValue"
++                                android:text="@string/home_link_off"
++                                android:textColor="@color/accent_cyan_2"
++                                tools:text="Auto / Wi‑Fi" />
++                        </LinearLayout>
++
++                        <LinearLayout
++                            android:layout_width="0dp"
+                             android:layout_height="wrap_content"
+-                            android:layout_marginTop="8dp"
+-                            android:indeterminate="true"
+-                            android:indeterminateTint="@color/brand_orange"
+-                            android:visibility="gone" />
++                            android:layout_marginStart="4dp"
++                            android:layout_weight="1"
++                            android:background="@drawable/home_tile_bg"
++                            android:orientation="vertical"
++                            android:padding="10dp">
++
++                            <TextView
++                                style="@style/HomeTelLabel"
++                                android:text="@string/home_tel_sync" />
++
++                            <TextView
++                                android:id="@+id/tel_sync"
++                                style="@style/HomeTelValue"
++                                android:text="@string/home_tel_none"
++                                tools:text="Just now" />
++                        </LinearLayout>
+                     </LinearLayout>
+                 </LinearLayout>
+             </com.google.android.material.card.MaterialCardView>
+ 
+-            <!-- Connect becomes Stop while linking or projecting. -->
++            <!-- ===== 3. Hero CTA — Connect becomes Stop while linking or projecting. ===== -->
+             <com.google.android.material.button.MaterialButton
+                 android:id="@+id/btn_connect"
+-                style="@style/Widget.OpenCfMoto.Button.Connect"
++                style="@style/Widget.OpenCfMoto.Home.Cta"
+                 android:layout_width="match_parent"
+                 android:layout_height="wrap_content"
+                 android:layout_marginTop="16dp"
+                 android:text="@string/main_connect" />
+ 
++            <TextView
++                android:layout_width="match_parent"
++                android:layout_height="wrap_content"
++                android:layout_marginTop="2dp"
++                android:gravity="center"
++                android:text="@string/home_cta_sub"
++                android:textColor="@color/text_secondary"
++                android:textSize="12sp"
++                android:textStyle="italic" />
++
++            <!-- ===== 4. Cockpit function grid — row 1 ===== -->
+             <LinearLayout
+                 android:layout_width="match_parent"
+                 android:layout_height="wrap_content"
+-                android:layout_marginTop="10dp"
++                android:layout_marginTop="16dp"
+                 android:baselineAligned="false"
+                 android:orientation="horizontal">
+ 
+-                <com.google.android.material.button.MaterialButton
++                <com.google.android.material.card.MaterialCardView
+                     android:id="@+id/btn_hud_view"
+-                    style="@style/Widget.OpenCfMoto.Button.Tonal"
++                    style="@style/Card.OpenCfMoto.Home"
+                     android:layout_width="0dp"
+                     android:layout_height="wrap_content"
+                     android:layout_marginEnd="5dp"
+                     android:layout_weight="1"
+-                    android:maxLines="1"
+-                    android:ellipsize="end"
+-                    android:text="@string/hud_dash_view" />
++                    android:clickable="true"
++                    android:focusable="true"
++                    android:stateListAnimator="@animator/home_press"
++                    app:rippleColor="#3300E5FF">
+ 
+-                <com.google.android.material.button.MaterialButton
++                    <LinearLayout
++                        android:layout_width="match_parent"
++                        android:layout_height="wrap_content"
++                        android:orientation="vertical">
++
++                        <ImageView
++                            android:layout_width="44dp"
++                            android:layout_height="44dp"
++                            android:background="@drawable/home_glow_cyan"
++                            android:importantForAccessibility="no"
++                            android:padding="11dp"
++                            android:src="@drawable/ic_speed"
++                            android:tint="@color/accent_cyan_2" />
++
++                        <TextView
++                            android:layout_width="match_parent"
++                            android:layout_height="wrap_content"
++                            android:layout_marginTop="10dp"
++                            android:maxLines="1"
++                            android:ellipsize="end"
++                            android:text="@string/hud_dash_view"
++                            android:textColor="@color/text_primary"
++                            android:textSize="15sp"
++                            android:textStyle="bold" />
++
++                        <TextView
++                            android:layout_width="match_parent"
++                            android:layout_height="wrap_content"
++                            android:layout_marginTop="2dp"
++                            android:text="@string/home_dash_view_sub"
++                            android:textColor="@color/text_secondary"
++                            android:textSize="12sp" />
++                    </LinearLayout>
++                </com.google.android.material.card.MaterialCardView>
++
++                <com.google.android.material.card.MaterialCardView
+                     android:id="@+id/btn_controls"
+-                    style="@style/Widget.OpenCfMoto.Button.Tonal"
++                    style="@style/Card.OpenCfMoto.Home"
+                     android:layout_width="0dp"
+                     android:layout_height="wrap_content"
+                     android:layout_marginStart="5dp"
+                     android:layout_weight="1"
+-                    android:maxLines="1"
+-                    android:ellipsize="end"
+-                    android:text="@string/controls_controls" />
++                    android:clickable="true"
++                    android:focusable="true"
++                    android:stateListAnimator="@animator/home_press"
++                    app:rippleColor="#33A78BFA">
++
++                    <LinearLayout
++                        android:layout_width="match_parent"
++                        android:layout_height="wrap_content"
++                        android:orientation="vertical">
++
++                        <ImageView
++                            android:layout_width="44dp"
++                            android:layout_height="44dp"
++                            android:background="@drawable/home_glow_purple"
++                            android:importantForAccessibility="no"
++                            android:padding="11dp"
++                            android:src="@drawable/ic_devices"
++                            android:tint="@color/accent_purple" />
++
++                        <TextView
++                            android:layout_width="match_parent"
++                            android:layout_height="wrap_content"
++                            android:layout_marginTop="10dp"
++                            android:maxLines="1"
++                            android:ellipsize="end"
++                            android:text="@string/controls_controls"
++                            android:textColor="@color/text_primary"
++                            android:textSize="15sp"
++                            android:textStyle="bold" />
++
++                        <TextView
++                            android:layout_width="match_parent"
++                            android:layout_height="wrap_content"
++                            android:layout_marginTop="2dp"
++                            android:text="@string/home_controls_sub"
++                            android:textColor="@color/text_secondary"
++                            android:textSize="12sp" />
++                    </LinearLayout>
++                </com.google.android.material.card.MaterialCardView>
+             </LinearLayout>
+ 
++            <!-- ===== 4. Cockpit function grid — row 2 ===== -->
+             <LinearLayout
+                 android:layout_width="match_parent"
+                 android:layout_height="wrap_content"
+-                android:layout_marginTop="8dp"
++                android:layout_marginTop="10dp"
+                 android:baselineAligned="false"
+                 android:orientation="horizontal">
+ 
+                 <com.google.android.material.button.MaterialButton
+                     android:id="@+id/btn_aa_start"
+-                    style="@style/Widget.OpenCfMoto.Button.Tile"
++                    style="@style/Widget.OpenCfMoto.Home.Tile"
+                     android:layout_width="0dp"
+                     android:layout_height="wrap_content"
+                     android:layout_marginEnd="4dp"
+                     android:layout_weight="1"
+-                    android:maxLines="1"
+-                    app:autoSizeTextType="uniform"
+-                    app:autoSizeMinTextSize="@dimen/btn_tile_text_min"
+-                    app:autoSizeMaxTextSize="@dimen/btn_tile_text"
+-                    app:autoSizeStepGranularity="1sp"
+-                    android:text="@string/main_scan" />
++                    android:text="@string/home_scan_qr" />
+ 
+                 <com.google.android.material.button.MaterialButton
+                     android:id="@+id/btn_gpx"
+-                    style="@style/Widget.OpenCfMoto.Button.Tile"
++                    style="@style/Widget.OpenCfMoto.Home.Tile"
+                     android:layout_width="0dp"
+                     android:layout_height="wrap_content"
+                     android:layout_marginHorizontal="4dp"
+                     android:layout_weight="1"
+-                    android:maxLines="1"
+-                    app:autoSizeTextType="uniform"
+-                    app:autoSizeMinTextSize="@dimen/btn_tile_text_min"
+-                    app:autoSizeMaxTextSize="@dimen/btn_tile_text"
+-                    app:autoSizeStepGranularity="1sp"
+-                    android:text="@string/gpx_map" />
++                    android:text="@string/home_map_gpx" />
+ 
+                 <com.google.android.material.button.MaterialButton
+                     android:id="@+id/btn_mirror_start"
+-                    style="@style/Widget.OpenCfMoto.Button.Tile"
++                    style="@style/Widget.OpenCfMoto.Home.Tile"
+                     android:layout_width="0dp"
+                     android:layout_height="wrap_content"
+                     android:layout_marginStart="4dp"
+                     android:layout_weight="1"
+-                    android:maxLines="1"
+-                    app:autoSizeTextType="uniform"
+-                    app:autoSizeMinTextSize="@dimen/btn_tile_text_min"
+-                    app:autoSizeMaxTextSize="@dimen/btn_tile_text"
+-                    app:autoSizeStepGranularity="1sp"
+                     android:text="@string/main_mirror" />
+             </LinearLayout>
+ 
+@@ -226,120 +499,103 @@
+                 android:text="@string/main_stop"
+                 android:visibility="gone" />
+ 
+-            <!-- 2×2 so labels stay horizontal on narrow phones / large font. -->
++            <!-- ===== 5. Quick navigation pill bar ===== -->
+             <LinearLayout
+                 android:layout_width="match_parent"
+                 android:layout_height="wrap_content"
+-                android:layout_marginTop="6dp"
+-                android:orientation="vertical">
++                android:layout_marginTop="14dp"
++                android:baselineAligned="false"
++                android:orientation="horizontal">
+ 
+-                <LinearLayout
+-                    android:layout_width="match_parent"
++                <com.google.android.material.button.MaterialButton
++                    android:id="@+id/btn_setup"
++                    style="@style/Widget.OpenCfMoto.Home.Pill"
++                    android:layout_width="0dp"
+                     android:layout_height="wrap_content"
+-                    android:orientation="horizontal">
+-
+-                    <com.google.android.material.button.MaterialButton
+-                        android:id="@+id/btn_setup"
+-                        style="@style/Widget.OpenCfMoto.Button.Text"
+-                        android:layout_width="0dp"
+-                        android:layout_height="wrap_content"
+-                        android:layout_weight="1"
+-                        android:maxLines="1"
+-                        android:ellipsize="end"
+-                        android:text="@string/main_setup"
+-                        app:icon="@drawable/ic_settings"
+-                        app:iconTint="@color/text_secondary"
+-                        app:iconGravity="textStart"
+-                        app:iconPadding="6dp"
+-                        app:iconSize="18dp" />
+-
+-                    <com.google.android.material.button.MaterialButton
+-                        android:id="@+id/btn_devices"
+-                        style="@style/Widget.OpenCfMoto.Button.Text"
+-                        android:layout_width="0dp"
+-                        android:layout_height="wrap_content"
+-                        android:layout_weight="1"
+-                        android:maxLines="1"
+-                        android:ellipsize="end"
+-                        android:text="@string/garage_garage"
+-                        app:icon="@drawable/ic_devices"
+-                        app:iconTint="@color/text_secondary"
+-                        app:iconGravity="textStart"
+-                        app:iconPadding="6dp"
+-                        app:iconSize="18dp" />
+-                </LinearLayout>
++                    android:layout_marginEnd="3dp"
++                    android:layout_weight="1"
++                    android:text="@string/main_setup" />
+ 
+-                <LinearLayout
+-                    android:layout_width="match_parent"
++                <com.google.android.material.button.MaterialButton
++                    android:id="@+id/btn_devices"
++                    style="@style/Widget.OpenCfMoto.Home.Pill"
++                    android:layout_width="0dp"
+                     android:layout_height="wrap_content"
+-                    android:orientation="horizontal">
++                    android:layout_marginHorizontal="3dp"
++                    android:layout_weight="1"
++                    android:text="@string/garage_garage" />
+ 
+-                    <com.google.android.material.button.MaterialButton
+-                        android:id="@+id/btn_trip"
+-                        style="@style/Widget.OpenCfMoto.Button.Text"
+-                        android:layout_width="0dp"
+-                        android:layout_height="wrap_content"
+-                        android:layout_weight="1"
+-                        android:maxLines="1"
+-                        android:ellipsize="end"
+-                        android:text="@string/main_trip"
+-                        app:icon="@drawable/ic_ride"
+-                        app:iconTint="@color/text_secondary"
+-                        app:iconGravity="textStart"
+-                        app:iconPadding="6dp"
+-                        app:iconSize="18dp" />
++                <com.google.android.material.button.MaterialButton
++                    android:id="@+id/btn_trip"
++                    style="@style/Widget.OpenCfMoto.Home.Pill"
++                    android:layout_width="0dp"
++                    android:layout_height="wrap_content"
++                    android:layout_marginHorizontal="3dp"
++                    android:layout_weight="1"
++                    android:text="@string/main_trip" />
+ 
+-                    <com.google.android.material.button.MaterialButton
+-                        android:id="@+id/btn_toggle_log"
+-                        style="@style/Widget.OpenCfMoto.Button.Text"
+-                        android:layout_width="0dp"
+-                        android:layout_height="wrap_content"
+-                        android:layout_weight="1"
+-                        android:maxLines="1"
+-                        android:ellipsize="end"
+-                        android:text="@string/main_logs"
+-                        app:icon="@drawable/ic_logs"
+-                        app:iconTint="@color/text_secondary"
+-                        app:iconGravity="textStart"
+-                        app:iconPadding="6dp"
+-                        app:iconSize="18dp" />
+-                </LinearLayout>
++                <com.google.android.material.button.MaterialButton
++                    android:id="@+id/btn_toggle_log"
++                    style="@style/Widget.OpenCfMoto.Home.Pill"
++                    android:layout_width="0dp"
++                    android:layout_height="wrap_content"
++                    android:layout_marginStart="3dp"
++                    android:layout_weight="1"
++                    android:text="@string/main_logs" />
+             </LinearLayout>
+ 
++            <!-- ===== 6. Search & navigation input ===== -->
+             <LinearLayout
+                 android:layout_width="match_parent"
+                 android:layout_height="wrap_content"
+-                android:layout_marginTop="8dp"
++                android:layout_marginTop="12dp"
++                android:background="@drawable/home_search_bg"
+                 android:gravity="center_vertical"
+-                android:orientation="horizontal">
++                android:minHeight="56dp"
++                android:orientation="horizontal"
++                android:paddingStart="14dp"
++                android:paddingEnd="4dp"
++                android:paddingVertical="4dp">
++
++                <ImageView
++                    android:layout_width="20dp"
++                    android:layout_height="20dp"
++                    android:importantForAccessibility="no"
++                    android:src="@drawable/ic_search"
++                    android:tint="@color/text_secondary" />
+ 
+                 <EditText
+                     android:id="@+id/et_destination"
+                     android:layout_width="0dp"
+                     android:layout_height="wrap_content"
++                    android:layout_marginStart="10dp"
+                     android:layout_weight="1"
+-                    android:hint="@string/main_search_a_place_or_address"
++                    android:background="@null"
++                    android:hint="@string/home_search_hint"
+                     android:imeOptions="actionGo"
+                     android:inputType="textPostalAddress"
+                     android:maxLines="1"
++                    android:minHeight="48dp"
+                     android:textColor="@color/text_primary"
+-                    android:textColorHint="@color/text_secondary" />
++                    android:textColorHint="@color/text_secondary"
++                    android:textSize="15sp" />
+ 
+                 <com.google.android.material.button.MaterialButton
+                     android:id="@+id/btn_navigate"
+-                    style="@style/Widget.OpenCfMoto.Segment"
++                    style="@style/Widget.OpenCfMoto.Home.Go"
+                     android:layout_width="wrap_content"
+                     android:layout_height="wrap_content"
+-                    android:layout_marginStart="8dp"
+-                    android:text="@string/main_go" />
++                    android:layout_marginStart="6dp"
++                    android:text="@string/home_go" />
+             </LinearLayout>
+ 
++            <!-- ===== 7. Rider field guide ===== -->
+             <com.google.android.material.card.MaterialCardView
+                 android:id="@+id/tips_panel"
+-                style="@style/Card.OpenCfMoto"
++                style="@style/Card.OpenCfMoto.Home"
+                 android:layout_width="match_parent"
+                 android:layout_height="wrap_content"
+-                android:layout_marginTop="10dp">
++                android:layout_marginTop="14dp">
+ 
+                 <LinearLayout
+                     android:layout_width="match_parent"
+@@ -350,61 +606,142 @@
+                         android:layout_width="match_parent"
+                         android:layout_height="wrap_content"
+                         android:letterSpacing="0.08"
+-                        android:text="@string/main_rider_tips"
++                        android:text="@string/home_guide_title"
+                         android:textAllCaps="true"
+                         android:textColor="@color/text_secondary"
+-                        android:textSize="12sp" />
++                        android:textSize="12sp"
++                        android:textStyle="bold" />
+ 
+-                    <TextView
++                    <LinearLayout
+                         android:layout_width="match_parent"
+                         android:layout_height="wrap_content"
+-                        android:layout_marginTop="10dp"
+-                        android:lineSpacingExtra="4dp"
+-                        android:text="@string/main_connect_start_android_auto_on_the_dash_becomes_s"
+-                        android:textColor="@color/text_primary"
+-                        android:textSize="14sp" />
++                        android:layout_marginTop="12dp"
++                        android:orientation="horizontal">
+ 
+-                    <com.google.android.material.button.MaterialButton
+-                        android:id="@+id/btn_about_page"
+-                        style="@style/Widget.OpenCfMoto.Segment"
++                        <TextView style="@style/HomeGuideNum" android:text="1" />
++
++                        <LinearLayout
++                            android:layout_width="0dp"
++                            android:layout_height="wrap_content"
++                            android:layout_marginStart="12dp"
++                            android:layout_weight="1"
++                            android:orientation="vertical">
++
++                            <TextView style="@style/HomeGuideTitle" android:text="@string/home_guide_1_title" />
++                            <TextView style="@style/HomeGuideBody" android:text="@string/home_guide_1_body" />
++                        </LinearLayout>
++                    </LinearLayout>
++
++                    <LinearLayout
+                         android:layout_width="match_parent"
+                         android:layout_height="wrap_content"
+                         android:layout_marginTop="12dp"
+-                        android:text="@string/main_about_credits" />
++                        android:orientation="horizontal">
++
++                        <TextView style="@style/HomeGuideNum" android:text="2" />
++
++                        <LinearLayout
++                            android:layout_width="0dp"
++                            android:layout_height="wrap_content"
++                            android:layout_marginStart="12dp"
++                            android:layout_weight="1"
++                            android:orientation="vertical">
++
++                            <TextView style="@style/HomeGuideTitle" android:text="@string/home_guide_2_title" />
++                            <TextView style="@style/HomeGuideBody" android:text="@string/home_guide_2_body" />
++                        </LinearLayout>
++                    </LinearLayout>
++
++                    <LinearLayout
++                        android:layout_width="match_parent"
++                        android:layout_height="wrap_content"
++                        android:layout_marginTop="12dp"
++                        android:orientation="horizontal">
++
++                        <TextView style="@style/HomeGuideNum" android:text="3" />
++
++                        <LinearLayout
++                            android:layout_width="0dp"
++                            android:layout_height="wrap_content"
++                            android:layout_marginStart="12dp"
++                            android:layout_weight="1"
++                            android:orientation="vertical">
++
++                            <TextView style="@style/HomeGuideTitle" android:text="@string/home_guide_3_title" />
++                            <TextView style="@style/HomeGuideBody" android:text="@string/home_guide_3_body" />
++                        </LinearLayout>
++                    </LinearLayout>
++
++                    <LinearLayout
++                        android:layout_width="match_parent"
++                        android:layout_height="wrap_content"
++                        android:layout_marginTop="12dp"
++                        android:orientation="horizontal">
++
++                        <TextView style="@style/HomeGuideNum" android:text="4" />
++
++                        <LinearLayout
++                            android:layout_width="0dp"
++                            android:layout_height="wrap_content"
++                            android:layout_marginStart="12dp"
++                            android:layout_weight="1"
++                            android:orientation="vertical">
++
++                            <TextView style="@style/HomeGuideTitle" android:text="@string/home_guide_4_title" />
++                            <TextView style="@style/HomeGuideBody" android:text="@string/home_guide_4_body" />
++                        </LinearLayout>
++                    </LinearLayout>
+ 
+                     <com.google.android.material.button.MaterialButton
+-                        android:id="@+id/btn_check_update"
+-                        style="@style/Widget.OpenCfMoto.Segment"
++                        android:id="@+id/btn_about_page"
++                        style="@style/Widget.OpenCfMoto.Home.Action"
+                         android:layout_width="match_parent"
+                         android:layout_height="wrap_content"
+-                        android:layout_marginTop="6dp"
+-                        android:text="@string/main_check_for_update" />
++                        android:layout_marginTop="16dp"
++                        android:text="@string/main_about_credits" />
+ 
+                     <com.google.android.material.button.MaterialButton
+-                        android:id="@+id/btn_problem_report"
+-                        style="@style/Widget.OpenCfMoto.Segment"
++                        android:id="@+id/btn_check_update"
++                        style="@style/Widget.OpenCfMoto.Home.Action"
+                         android:layout_width="match_parent"
+                         android:layout_height="wrap_content"
+                         android:layout_marginTop="6dp"
+-                        android:text="@string/main_report_a_problem" />
++                        android:text="@string/main_check_for_update" />
+ 
+-                    <com.google.android.material.button.MaterialButton
+-                        android:id="@+id/btn_donate"
+-                        style="@style/Widget.OpenCfMoto.Button.Text"
++                    <LinearLayout
+                         android:layout_width="match_parent"
+                         android:layout_height="wrap_content"
+                         android:layout_marginTop="4dp"
+-                        android:text="@string/about_donate"
+-                        android:textSize="13sp" />
++                        android:orientation="horizontal">
++
++                        <com.google.android.material.button.MaterialButton
++                            android:id="@+id/btn_problem_report"
++                            style="@style/Widget.OpenCfMoto.Button.Text"
++                            android:layout_width="0dp"
++                            android:layout_height="wrap_content"
++                            android:layout_weight="1"
++                            android:text="@string/main_report_a_problem"
++                            android:textSize="13sp" />
++
++                        <com.google.android.material.button.MaterialButton
++                            android:id="@+id/btn_donate"
++                            style="@style/Widget.OpenCfMoto.Button.Text"
++                            android:layout_width="0dp"
++                            android:layout_height="wrap_content"
++                            android:layout_weight="1"
++                            android:text="@string/about_donate"
++                            android:textSize="13sp" />
++                    </LinearLayout>
+                 </LinearLayout>
+             </com.google.android.material.card.MaterialCardView>
+ 
++            <!-- Diagnostics drawer (toggled by the Logs pill). -->
+             <com.google.android.material.card.MaterialCardView
+                 android:id="@+id/log_panel"
+                 style="@style/Card.OpenCfMoto.Log"
+                 android:layout_width="match_parent"
+                 android:layout_height="wrap_content"
+-                android:layout_marginTop="10dp"
++                android:layout_marginTop="14dp"
+                 android:minHeight="220dp"
+                 android:visibility="gone">
+ 
+@@ -451,7 +788,7 @@
+                         android:layout_width="match_parent"
+                         android:layout_height="220dp"
+                         android:layout_marginTop="4dp"
+-                        android:background="@color/bg"
++                        android:background="@color/home_bg"
+                         android:fillViewport="true"
+                         android:nestedScrollingEnabled="true"
+                         android:padding="8dp">
+diff --git a/app/src/main/res/values/colors.xml b/app/src/main/res/values/colors.xml
+index 0d04992..2d79901 100644
+--- a/app/src/main/res/values/colors.xml
++++ b/app/src/main/res/values/colors.xml
+@@ -23,4 +23,16 @@
+     <color name="status_busy">#FFB020</color>
+     <color name="status_error">#FF5A52</color>
+     <color name="status_idle">#8A93A3</color>
++
++    <!-- Home "cockpit" redesign tokens. -->
++    <color name="home_bg">#0B0F15</color>
++    <color name="home_card">#151B24</color>
++    <color name="home_card_high">#1A2230</color>
++    <color name="home_border">#222D3D</color>
++    <color name="accent_orange">#FF5A00</color>
++    <color name="accent_orange_2">#FA6400</color>
++    <color name="accent_cyan">#00D2D3</color>
++    <color name="accent_cyan_2">#00E5FF</color>
++    <color name="accent_emerald">#10B981</color>
++    <color name="accent_purple">#A78BFA</color>
+ </resources>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 234ef73..d015757 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -583,6 +583,43 @@
+     <string name="main_rival_title">Official CFMoto app is in the way</string>
+     <string name="main_bike_search_hint">Bike dash search — type here</string>
+ 
++    <!-- Home screen (cockpit redesign) -->
++    <string name="home_settings">Settings</string>
++    <string name="home_about">About</string>
++    <string name="home_badge_ready">READY TO PAIR</string>
++    <string name="home_badge_paired">READY</string>
++    <string name="home_badge_linking">LINKING</string>
++    <string name="home_badge_live">LIVE</string>
++    <string name="home_badge_error">ERROR</string>
++    <string name="home_no_bike">No bike</string>
++    <string name="home_tel_phone">Phone</string>
++    <string name="home_tel_link">Link</string>
++    <string name="home_tel_sync">Last sync</string>
++    <string name="home_tel_none">—</string>
++    <string name="home_link_off">Off</string>
++    <string name="home_link_wifi">Wi‑Fi</string>
++    <string name="home_link_aa">Auto / Wi‑Fi</string>
++    <string name="home_link_mirror">Mirror</string>
++    <string name="home_sync_now">Just now</string>
++    <string name="home_sync_min">%1$d min ago</string>
++    <string name="home_sync_hr">%1$d h ago</string>
++    <string name="home_cta_sub">Starts projection on your CFMoto TFT dash</string>
++    <string name="home_dash_view_sub">Live HUD &amp; gauges</string>
++    <string name="home_controls_sub">D‑pad remote &amp; switchgear</string>
++    <string name="home_scan_qr">Scan QR</string>
++    <string name="home_map_gpx">Map &amp; GPX</string>
++    <string name="home_go">GO ›</string>
++    <string name="home_search_hint">Destination, GPX track or POI…</string>
++    <string name="home_guide_title">Rider field guide</string>
++    <string name="home_guide_1_title">Connect</string>
++    <string name="home_guide_1_body">Starts Android Auto on the dash. Becomes Stop while linked.</string>
++    <string name="home_guide_2_title">Map &amp; GPX</string>
++    <string name="home_guide_2_body">OpenCfMoto\'s own map and GPX tracks — not Google Maps.</string>
++    <string name="home_guide_3_title">Dash switcher</string>
++    <string name="home_guide_3_body">While connected, Map and Mirror switch what the dash shows.</string>
++    <string name="home_guide_4_title">Controls</string>
++    <string name="home_guide_4_body">Phone D‑pad remote and handlebar button mapping.</string>
++
+     <!-- Notifications -->
+     <string name="notif_aa_channel">Android Auto receiver</string>
+     <string name="notif_aa_title">OpenCfMoto — Android Auto</string>
+diff --git a/app/src/main/res/values/themes.xml b/app/src/main/res/values/themes.xml
+index 22afbb2..8adb66a 100644
+--- a/app/src/main/res/values/themes.xml
++++ b/app/src/main/res/values/themes.xml
+@@ -99,6 +99,133 @@
+         <item name="contentPadding">10dp</item>
+     </style>
+ 
++    <!-- ===== Home screen (cockpit redesign) ===== -->
++    <style name="Card.OpenCfMoto.Home" parent="Widget.Material3.CardView.Outlined">
++        <item name="cardCornerRadius">20dp</item>
++        <item name="cardBackgroundColor">@color/home_card</item>
++        <item name="cardElevation">0dp</item>
++        <item name="strokeColor">@color/home_border</item>
++        <item name="strokeWidth">1dp</item>
++        <item name="contentPadding">16dp</item>
++    </style>
++
++    <!-- Hero CTA. The orange gradient background is applied in MainActivity (MaterialButton
++         ignores android:background from XML in this setup). -->
++    <style name="Widget.OpenCfMoto.Home.Cta" parent="Widget.OpenCfMoto.Button.Connect">
++        <item name="android:minHeight">60dp</item>
++        <item name="android:textSize">17sp</item>
++        <item name="android:textColor">@color/white</item>
++        <item name="iconTint">@color/white</item>
++        <item name="iconSize">22dp</item>
++        <item name="android:stateListAnimator">@animator/home_press</item>
++    </style>
++
++    <!-- Secondary utility tiles (Scan QR / Map & GPX / Mirror). -->
++    <style name="Widget.OpenCfMoto.Home.Tile" parent="Widget.OpenCfMoto.Button.Tile">
++        <item name="android:minHeight">72dp</item>
++        <item name="backgroundTint">@color/home_card</item>
++        <item name="strokeColor">@color/home_border</item>
++        <item name="strokeWidth">1dp</item>
++        <item name="cornerRadius">16dp</item>
++        <item name="android:textColor">@color/text_primary</item>
++        <item name="iconTint">@color/accent_cyan_2</item>
++        <item name="iconSize">24dp</item>
++        <item name="rippleColor">#3300E5FF</item>
++        <item name="android:stateListAnimator">@animator/home_press</item>
++    </style>
++
++    <!-- Quick-nav pills (Setup / Garage / Trip / Logs). -->
++    <style name="Widget.OpenCfMoto.Home.Pill" parent="Widget.Material3.Button.TonalButton">
++        <item name="android:minHeight">48dp</item>
++        <item name="android:insetTop">0dp</item>
++        <item name="android:insetBottom">0dp</item>
++        <item name="android:paddingStart">8dp</item>
++        <item name="android:paddingEnd">8dp</item>
++        <item name="android:textSize">13sp</item>
++        <item name="android:textColor">@color/text_primary</item>
++        <item name="android:maxLines">1</item>
++        <item name="android:ellipsize">end</item>
++        <item name="backgroundTint">@color/home_card</item>
++        <item name="strokeColor">@color/home_border</item>
++        <item name="strokeWidth">1dp</item>
++        <item name="cornerRadius">100dp</item>
++        <item name="android:stateListAnimator">@animator/home_press</item>
++    </style>
++
++    <!-- Bold orange GO button in the search bar. -->
++    <style name="Widget.OpenCfMoto.Home.Go" parent="Widget.Material3.Button">
++        <item name="android:minHeight">48dp</item>
++        <item name="android:minWidth">72dp</item>
++        <item name="android:insetTop">0dp</item>
++        <item name="android:insetBottom">0dp</item>
++        <item name="android:textStyle">bold</item>
++        <item name="android:textSize">15sp</item>
++        <item name="android:textColor">@color/white</item>
++        <item name="backgroundTint">@color/accent_orange</item>
++        <item name="cornerRadius">12dp</item>
++        <item name="android:stateListAnimator">@animator/home_press</item>
++    </style>
++
++    <!-- Field-guide footer actions. -->
++    <style name="Widget.OpenCfMoto.Home.Action" parent="Widget.OpenCfMoto.Segment">
++        <item name="android:minHeight">48dp</item>
++        <item name="android:textSize">13sp</item>
++        <item name="android:textColor">@color/text_primary</item>
++        <item name="backgroundTint">@color/home_bg</item>
++        <item name="strokeColor">@color/home_border</item>
++        <item name="strokeWidth">1dp</item>
++        <item name="android:stateListAnimator">@animator/home_press</item>
++    </style>
++
++    <style name="HomeTelLabel">
++        <item name="android:layout_width">match_parent</item>
++        <item name="android:layout_height">wrap_content</item>
++        <item name="android:textColor">@color/text_secondary</item>
++        <item name="android:textAllCaps">true</item>
++        <item name="android:textSize">10sp</item>
++        <item name="android:letterSpacing">0.08</item>
++        <item name="android:maxLines">1</item>
++    </style>
++
++    <style name="HomeTelValue">
++        <item name="android:layout_width">match_parent</item>
++        <item name="android:layout_height">wrap_content</item>
++        <item name="android:layout_marginTop">4dp</item>
++        <item name="android:fontFamily">monospace</item>
++        <item name="android:textColor">@color/text_primary</item>
++        <item name="android:textSize">14sp</item>
++        <item name="android:textStyle">bold</item>
++        <item name="android:maxLines">1</item>
++        <item name="android:ellipsize">end</item>
++    </style>
++
++    <style name="HomeGuideNum">
++        <item name="android:layout_width">28dp</item>
++        <item name="android:layout_height">28dp</item>
++        <item name="android:background">@drawable/home_num_badge</item>
++        <item name="android:gravity">center</item>
++        <item name="android:textColor">@color/accent_orange</item>
++        <item name="android:textSize">13sp</item>
++        <item name="android:textStyle">bold</item>
++        <item name="android:fontFamily">monospace</item>
++    </style>
++
++    <style name="HomeGuideTitle">
++        <item name="android:layout_width">match_parent</item>
++        <item name="android:layout_height">wrap_content</item>
++        <item name="android:textColor">@color/text_primary</item>
++        <item name="android:textSize">14sp</item>
++        <item name="android:textStyle">bold</item>
++    </style>
++
++    <style name="HomeGuideBody">
++        <item name="android:layout_width">match_parent</item>
++        <item name="android:layout_height">wrap_content</item>
++        <item name="android:layout_marginTop">2dp</item>
++        <item name="android:textColor">@color/text_secondary</item>
++        <item name="android:textSize">13sp</item>
++    </style>
++
+     <!-- Trip computer stat tiles. -->
+     <style name="TripStatLabel">
+         <item name="android:layout_width">match_parent</item>

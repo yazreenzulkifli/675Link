@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Soft atmospheric radial glow behind the bike illustration. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="28dp" />
+            <solid android:color="@color/home_card" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="28dp" />
+            <gradient android:type="radial" android:gradientRadius="220dp" android:centerX="0.5" android:centerY="0.55"
+                android:startColor="#3300C2CB" android:centerColor="#1200B4D8" android:endColor="#00FFFFFF" />
+        </shape>
+    </item>
+</layer-list>

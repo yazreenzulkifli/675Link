@@ -292,7 +292,32 @@ internal class AapControlGateway(
             Channel.ID_CTR -> return serviceControl.execute(message)
             Channel.ID_INP -> return touchControl.execute(message)
             Channel.ID_SEN -> return sensorControl.execute(message)
+            Channel.ID_NAV -> return navStatus(message)
             Channel.ID_VID, Channel.ID_AUD, Channel.ID_AU1, Channel.ID_AU2, Channel.ID_MIC -> return mediaControl.execute(message)
+        }
+        return 0
+    }
+
+    /** Navigation-status channel: Maps started / stopped guiding. Never throws into the AAP loop. */
+    private fun navStatus(message: AapMessage): Int {
+        try {
+            when (message.type) {
+                dev.zanderp.opencfmoto.aa.proto.NavigationStatus.MsgType.INSTRUMENT_CLUSTER_START_VALUE ->
+                    AaNavState.set(true)
+                dev.zanderp.opencfmoto.aa.proto.NavigationStatus.MsgType.INSTRUMENT_CLUSTER_STOP_VALUE ->
+                    AaNavState.set(false)
+                dev.zanderp.opencfmoto.aa.proto.NavigationStatus.MsgType.INSTRUMENT_CLUSTER_NAVIGATION_STATUS_VALUE -> {
+                    val s = message.parse(
+                        dev.zanderp.opencfmoto.aa.proto.NavigationStatus.NavigationClusterStatus.newBuilder(),
+                    ).buildPartial()
+                    AaNavState.set(
+                        s.status == dev.zanderp.opencfmoto.aa.proto.NavigationStatus.NavigationClusterStatus
+                            .NavigationStatusEnum.ACTIVE,
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            AaLog.e(e)
         }
         return 0
     }

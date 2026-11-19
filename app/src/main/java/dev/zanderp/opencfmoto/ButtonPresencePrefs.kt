@@ -24,6 +24,7 @@ object ButtonPresencePrefs {
     private const val PREF = "button_presence"
     private const val KEY_VOLUME = "volume_rocker"
     private const val KEY_TRACK = "track_keys"
+    private const val KEY_FREE_VOLUME = "free_volume"
 
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREF, Context.MODE_PRIVATE)
@@ -60,7 +61,31 @@ object ButtonPresencePrefs {
 
     /** True when we should pin STREAM_MUSIC to hijack ▲/▼ as nav. */
     fun shouldPinVolume(ctx: Context): Boolean =
-        volumeRocker(ctx) != ButtonPresence.ABSENT
+        !freeVolume(ctx) && volumeRocker(ctx) != ButtonPresence.ABSENT
+
+    /**
+     * Rider override: never pin the phone's music volume, so it can go to max and stays where it's
+     * set. Handlebar ▲/▼ can no longer be used for Android Auto navigation while this is on.
+     * Global (not per-bike).
+     */
+    fun freeVolume(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_FREE_VOLUME, true)
+
+    fun setFreeVolume(ctx: Context, on: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_FREE_VOLUME, on).apply()
+    }
+
+    /**
+     * Rider override: hold the button audio focus for the whole ride (old behaviour). Handlebar
+     * keys stick to Android Auto more reliably, but other apps' music stays ducked (~20%).
+     * Off (default) = grab focus briefly, then release so music plays at full volume. Global.
+     */
+    fun holdFocus(ctx: Context): Boolean =
+        prefs(ctx).getBoolean("hold_audio_focus", false)
+
+    fun setHoldFocus(ctx: Context, on: Boolean) {
+        prefs(ctx).edit().putBoolean("hold_audio_focus", on).apply()
+    }
 
     fun summarize(ctx: Context): String {
         fun label(p: ButtonPresence) = when (p) {

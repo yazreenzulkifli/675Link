@@ -47,6 +47,7 @@ This document explains what the app can access, why, and where data goes.
 | --- | --- | --- |
 | **Screen-capture approval** | Every time you start mirroring | Android requires you to approve capturing the display or a chosen app; the app cannot approve this silently |
 | **Display over other apps** *(optional)* | Only if you enable seamless auto-resume | Lets the foreground service relaunch Android Auto after a long stop with the screen off. If not granted, you get a tap-to-resume notification instead |
+| **Notification access** *(optional, Lab build only)* | Only if you enable "Google Maps turns on the dash" in the Lab test build — the everyday build cannot request it | Reads Google Maps' turn-by-turn navigation notification (next turn, distance, arrival time) so the OpenCfMoto Map dash can show it. Notifications from every other app are ignored, and nothing is stored or sent off the phone |
 
 ### Technical permissions granted by Android
 

@@ -299,8 +299,13 @@ class VideoPipeline(
             val usableW = (src.width - margins.marginW).coerceIn(16, src.width)
             val usableH = (src.height - margins.marginH).coerceIn(16, src.height)
             aaCompositor?.setFrameCap(power.fps)
-            aaCompositor?.setSourceCrop(usableW.toFloat() / src.width, usableH.toFloat() / src.height)
-            aaCompositor?.setOutput(surf, w, h, usableW, usableH, fit)
+            val navL = BikeProfileHolder.navCropLeft
+            val navB = BikeProfileHolder.navCropBottom
+            aaCompositor?.setSourceCrop(
+                usableW.toFloat() / src.width, usableH.toFloat() / src.height,
+                navL.toFloat() / src.width, navB.toFloat() / src.height,
+            )
+            aaCompositor?.setOutput(surf, w, h, usableW - navL, usableH - navB, fit, navL)
             log("[VIDEO] bike canvas ${w}x$h configured; AA source ${src.width}x${src.height} " +
                 "usable ${usableW}x$usableH (margins ${margins.marginW}x${margins.marginH}) → " +
                 "fit=$fit power=${power.fps}fps")

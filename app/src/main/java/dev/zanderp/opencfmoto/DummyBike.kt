@@ -175,6 +175,9 @@ object DummyBike {
         }
     }
 
+    /** Dummy car: skip the :10930 probe and connect straight back to the loopback ports. */
+    fun connectAsCar() { startSession() }
+
     @Synchronized
     private fun startSession() {
         session?.close("new probe — restarting session")

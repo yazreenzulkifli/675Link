@@ -77,6 +77,12 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
      */
     @Volatile private var ignoreVolumeChanges = false
     private var focusRequest: AudioFocusRequest? = null
+    /** Ends a focus pulse: abandon so other apps' music un-ducks (see [requestButtonFocus]). */
+    private val focusPulseEnd = Runnable {
+        try { focusRequest?.let { audio.abandonAudioFocusRequest(it) } } catch (_: Exception) {}
+        focusRequest = null
+        log("[BTN] audio focus released after pulse — music back to full volume")
+    }
     private var silence: AudioTrack? = null
     /** True while a reclaim is queued after another app stole audio/media-button focus. */
     private var reclaimPending = false
@@ -95,8 +101,13 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
             // Session refresh only while keys are flying — re-requesting focus mid-tap makes the
             // BT stack re-deliver the same press (looks like "need 3 taps for one step").
             refreshPlayingAppearance(reason = "keep-alive")
+            // No periodic focus grab: each one would dip the rider's music. Keep the silent
+            // track alive instead (it's what keeps us the "playing" app for AVRCP routing).
             val idle = SystemClock.elapsedRealtime() - lastKeyAt > KEY_IDLE_BEFORE_FOCUS_MS
-            if (idle && keepAliveTicks % 3 == 0) requestButtonFocus(reason = "keep-alive")
+            if (idle && keepAliveTicks % 3 == 0) {
+                if (ButtonPresencePrefs.holdFocus(context)) requestButtonFocus(reason = "keep-alive")
+                else startSilence()
+            }
             handler.postDelayed(this, KEEP_ALIVE_MS)
         }
     }
@@ -248,6 +259,11 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
             focusRequest = req
             val granted = audio.requestAudioFocus(req) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
             log("[BTN] audio focus ${if (granted) "granted (nav duck — music can play)" else "DENIED"} ($reason)")
+            // Pulse, don't hold: a held MAY_DUCK focus keeps Spotify/YT ducked to ~20% for the
+            // whole ride. Grab it long enough to win the bike's AVRCP keys, then let music back up;
+            // the looping silent track + PLAYING session keep the keys routed to us.
+            handler.removeCallbacks(focusPulseEnd)
+            if (granted && !ButtonPresencePrefs.holdFocus(context)) handler.postDelayed(focusPulseEnd, FOCUS_PULSE_MS)
         } catch (e: Exception) {
             log("[BTN] audio focus failed: $e")
         }
@@ -406,6 +422,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
         cancelReclaim()
         cancelMediaNotification()
         stopSilence()
+        handler.removeCallbacks(focusPulseEnd)
         try { focusRequest?.let { audio.abandonAudioFocusRequest(it) } } catch (_: Exception) {}
         focusRequest = null
     }
@@ -544,6 +561,14 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
             if (ButtonPresencePrefs.shouldPinVolume(context)) maybePinVolume("presence-refresh")
             else unpinVolume()
             startAbsentVolumeProbe()
+        }
+    }
+
+    /** Home switch changed: re-take focus now; the pulse/hold choice is read at request time. */
+    fun refreshFocusPolicy() {
+        handler.post {
+            if (!ButtonMode.isControlAa(context)) return@post
+            requestButtonFocus(reason = if (ButtonPresencePrefs.holdFocus(context)) "hold-on" else "hold-off")
         }
     }
 
@@ -804,12 +829,68 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
         ButtonGesture.NAV_FWD, ButtonGesture.NAV_FWD_DOUBLE, ButtonGesture.NAV_FWD_LONG, "forward",
     )
 
+    /** While > now, media keys reaching our session are our own song keys bouncing back — drop. */
+    @Volatile private var ignoreMediaKeysUntil = 0L
+
+    /**
+     * "Maps + music only": deliver a song key (play/pause, next, previous) to the REAL music app.
+     * Our capture session is the phone's active media session, so a plain dispatch (or Android
+     * Auto forwarding a head-unit media key) would land back here and be read as a handlebar
+     * press. Step the session aside for the dispatch, then take the buttons back.
+     */
+    fun sendToMusicApp(keyCode: Int) {
+        handler.post {
+            try {
+                val wasActive = session?.isActive == true
+                ignoreMediaKeysUntil = SystemClock.elapsedRealtime() + SONG_KEY_ECHO_MS
+                if (wasActive) session?.isActive = false
+                // MediaSessionService re-picks the media-button session asynchronously; dispatch
+                // only after our session has dropped out, or the key lands back on us.
+                handler.postDelayed({
+                    try {
+                        val t = SystemClock.uptimeMillis()
+                        audio.dispatchMediaKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, keyCode, 0))
+                        audio.dispatchMediaKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, keyCode, 0))
+                        log("[BTN] song key ${KeyEvent.keyCodeToString(keyCode)} → music app")
+                    } catch (e: Exception) {
+                        log("[BTN] song key failed: $e")
+                    }
+                    if (wasActive) {
+                        handler.postDelayed({
+                            try {
+                                if (ButtonMode.isControlAa(context)) session?.isActive = true
+                            } catch (_: Exception) {}
+                        }, SONG_KEY_STEP_ASIDE_MS)
+                    }
+                }, if (wasActive) SONG_KEY_DROP_DELAY_MS else 0L)
+            } catch (e: Exception) {
+                log("[BTN] song key failed: $e")
+            }
+        }
+    }
+
     private val callback = object : MediaSession.Callback() {
         override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
             @Suppress("DEPRECATION")
             val ke = mediaButtonIntent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT) ?: return true
+            if (SystemClock.elapsedRealtime() < ignoreMediaKeysUntil) {
+                if (ke.action == KeyEvent.ACTION_DOWN) {
+                    log("[BTN] ignoring ${KeyEvent.keyCodeToString(ke.keyCode)} — echo of our own song key")
+                }
+                return true
+            }
+            val source = keySourceName(ke)
+            if (isForeignBtSource(source)) {
+                // Helmet intercom (or any non-bike BT device): behave as if Android Auto weren't here.
+                if (ke.action == KeyEvent.ACTION_DOWN && ke.repeatCount == 0) {
+                    log("[BTN] ${KeyEvent.keyCodeToString(ke.keyCode)} from \"$source\" (not the bike) → music app")
+                    sendToMusicApp(ke.keyCode)
+                }
+                return true
+            }
             when (ke.action) {
                 KeyEvent.ACTION_DOWN -> {
+                    if (ke.repeatCount == 0) log("[BTN] key source=\"$source\" deviceId=${ke.deviceId}")
                     val repeat = if (ke.repeatCount > 0) " repeat=${ke.repeatCount}" else ""
                     log("[BTN] media key ${KeyEvent.keyCodeToString(ke.keyCode)} down (code=${ke.keyCode})$repeat")
                     onKeyDown(ke.keyCode, ke.repeatCount)
@@ -826,6 +907,32 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
         override fun onPause() = detectDoubleTap(
             ButtonGesture.SELECT_PRESS, ButtonGesture.SELECT_DOUBLE, forceDouble = false,
         )
+    }
+
+    /** Name Android reports for the device that produced [ke], or null when it doesn't say. */
+    private fun keySourceName(ke: KeyEvent): String? = try {
+        android.view.InputDevice.getDevice(ke.deviceId)?.name?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * True only when the key's source name matches a paired Bluetooth device that is NOT the bike.
+     * Unknown / generic source names return false so the bike's own buttons keep working.
+     */
+    private fun isForeignBtSource(source: String?): Boolean {
+        if (source == null) return false
+        // The bike's D-pad shows up as a Bluetooth device whose name starts with "CFMOTO".
+        if (source.startsWith("CFMOTO", ignoreCase = true)) return false
+        return try {
+            val bike = BikeMemory.lastBikeName(context)
+            if (bike != null && (source.equals(bike, true) || source.contains(bike, true) || bike.contains(source, true))) {
+                return false
+            }
+            BluetoothHelper.bondedDevices(context).any { (_, name) -> name.equals(source, ignoreCase = true) }
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun isSelectKey(keyCode: Int) = when (keyCode) {
@@ -927,10 +1034,36 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
         private const val RECLAIM_MIN_GAP_MS = 2_000L
         /** Session refresh cadence; soft focus every 3rd tick when idle. */
         private const val KEEP_ALIVE_MS = 4_000L
+        /** How long a button-focus grab ducks other music before we let go. */
+        private const val FOCUS_PULSE_MS = 1_500L
         /** No ▲/▼ while streaming → mark rocker absent and stop pinning volume. */
         private const val ABSENT_VOLUME_PROBE_MS = 90_000L
         private const val MEDIA_CHANNEL = "opencfmoto_media"
         private const val MEDIA_NOTIF_ID = 3   // must not collide with AndroidAutoService's NOTIF_ID (2)
+        /** How long our session steps aside so a song key reaches the music app. */
+        private const val SONG_KEY_STEP_ASIDE_MS = 400L
+        /** Media keys arriving this soon after we sent one are treated as its echo. */
+        private const val SONG_KEY_ECHO_MS = 1_000L
+        /** Wait after deactivating our session before dispatching, so it is no longer the target. */
+        private const val SONG_KEY_DROP_DELAY_MS = 200L
+
+        /** See the instance [sendToMusicApp]; falls back to a plain dispatch with no bridge. */
+        fun sendToMusicApp(context: Context, keyCode: Int) {
+            val b = instance
+            if (b != null) {
+                b.sendToMusicApp(keyCode)
+                return
+            }
+            try {
+                val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                val t = SystemClock.uptimeMillis()
+                audio.dispatchMediaKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, keyCode, 0))
+                audio.dispatchMediaKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, keyCode, 0))
+                LogBus.log("[BTN] song key ${KeyEvent.keyCodeToString(keyCode)} → music app (no bridge)")
+            } catch (e: Exception) {
+                LogBus.log("[BTN] song key failed: $e")
+            }
+        }
 
         /** The live bridge (when Android Auto is running), so the settings toggle can reach it. */
         @Volatile var instance: MediaButtonBridge? = null
@@ -958,6 +1091,7 @@ class MediaButtonBridge(private val context: Context, private val log: (String) 
         }
 
         fun setVolume(context: Context, level: Int) {
+            VolumeKeeper.remember(context, level)   // slider = the rider's chosen level
             val bridge = instance
             if (bridge != null) {
                 bridge.setListeningVolume(level)

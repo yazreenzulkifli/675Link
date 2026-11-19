@@ -170,6 +170,20 @@ class GpxActivity : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.gpx_free_ride).setOnClickListener { startFreeRide() }
         findViewById<MaterialButton>(R.id.gpx_see_phone).setOnClickListener { seeMapOnPhone() }
+        findViewById<MaterialButton>(R.id.gpx_demo_gmaps)?.apply {
+            val debuggable = (applicationInfo.flags and
+                android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            isVisible = debuggable && BuildConfig.GMAPS_TURNS
+            // Fake Google Maps route → turn card on the map (phone preview, or the dash if live).
+            setOnClickListener {
+                GmapsNavDemo.start()
+                seeMapOnPhone()
+            }
+        }
+        findViewById<MaterialButton>(R.id.gpx_dummy_bike)?.apply {
+            isVisible = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            setOnClickListener { DummyDashActivity.start(this@GpxActivity) }
+        }
         findViewById<MaterialButton>(R.id.gpx_pick).setOnClickListener {
             pickLauncher.launch(arrayOf("application/gpx+xml", "application/xml", "text/xml", "*/*"))
         }
@@ -586,7 +600,8 @@ class GpxActivity : AppCompatActivity() {
 
     /** Primary Start: free ride projected to the bike (own-content, no Android Auto). */
     private fun startFreeRide() {
-        if (DependencyPrompt.showForConnect(this, forScan = false)) return
+        if (DependencyPrompt.showForConnect(this, forScan = false, needsAndroidAuto = false)) return
+        if (maybeAskGmapsAccess { startFreeRide() }) return
         ensureLocationPermission()
         ProjectionHolder.projection?.let { try { it.stop() } catch (_: Exception) {} }
         ProjectionHolder.projection = null
@@ -602,6 +617,30 @@ class GpxActivity : AppCompatActivity() {
             ),
         )
         launchSession(toBike = true)
+    }
+
+    /**
+     * One-time offer to let the Map dash show Google Maps' turn-by-turn (via notification access).
+     * @return true if a dialog is up; [then] runs after the rider answers "Not now".
+     */
+    private fun maybeAskGmapsAccess(then: () -> Unit): Boolean {
+        if (!BuildConfig.GMAPS_TURNS) return false   // everyday build has no notification reader
+        if (GmapsNav.isAccessGranted(this)) return false
+        val prefs = getSharedPreferences("gmaps_nav", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("asked", false)) return false
+        prefs.edit().putBoolean("asked", true).apply()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Google Maps turns on the dash?")
+            .setMessage(
+                "Navigate in Google Maps on your phone and the dash map shows the next turn, " +
+                    "distance and arrival time on top of the map.\n\n" +
+                    "This needs notification access. OpenCfMoto only reads Google Maps' " +
+                    "navigation notification, and the data stays on your phone.",
+            )
+            .setPositiveButton("Enable") { _, _ -> GmapsNav.openAccessSettings(this) }
+            .setNegativeButton("Not now") { _, _ -> then() }
+            .show()
+        return true
     }
 
     /** See the map on the phone (no bike) — free explore. Never auto-starts a route. */
@@ -625,7 +664,7 @@ class GpxActivity : AppCompatActivity() {
 
     private fun startGpxProjection() {
         val file = cachedFile ?: return
-        if (DependencyPrompt.showForConnect(this, forScan = false)) return
+        if (DependencyPrompt.showForConnect(this, forScan = false, needsAndroidAuto = false)) return
         if (BikeMemory.lastQr(this) == null) {
             Toast.makeText(this, getString(R.string.gpx_no_bike_open_phone_map), Toast.LENGTH_LONG).show()
             openGpxOnPhoneMap()
@@ -646,7 +685,7 @@ class GpxActivity : AppCompatActivity() {
 
     /** Navigate to a searched place. [toBike] projects to the bike; false keeps it on the phone. */
     private fun navigateTo(place: MapPlace, toBike: Boolean = true) {
-        if (toBike && DependencyPrompt.showForConnect(this, forScan = false)) return
+        if (toBike && DependencyPrompt.showForConnect(this, forScan = false, needsAndroidAuto = false)) return
         ensureLocationPermission()
         ProjectionHolder.projection?.let { try { it.stop() } catch (_: Exception) {} }
         ProjectionHolder.projection = null

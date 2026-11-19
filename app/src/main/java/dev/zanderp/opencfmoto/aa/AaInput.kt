@@ -50,10 +50,21 @@ class AaInput(
         /** KEYCODE_SEARCH — what a head unit sends for its "voice / Assistant" button. */
         const val KEY_ASSISTANT = 84
 
+        /** KEYCODE_MUSIC — a head unit's "media" button; opens Android Auto's media app. */
+        const val KEY_MUSIC = 209
+
+        /**
+         * Song keys for "Maps + music only". Sent to the phone's music app directly
+         * (MediaButtonBridge.sendToMusicApp), not over AAP — so not advertised to Android Auto.
+         */
+        const val KEY_MEDIA_PLAY_PAUSE = 85   // KEYCODE_MEDIA_PLAY_PAUSE
+        const val KEY_MEDIA_NEXT = 87         // KEYCODE_MEDIA_NEXT
+        const val KEY_MEDIA_PREVIOUS = 88     // KEYCODE_MEDIA_PREVIOUS
+
         /** All keycodes we advertise — declared to AA so it enables rotary/focus navigation. */
         val SUPPORTED_KEYCODES = intArrayOf(
             KEY_SCROLL_WHEEL, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_BACK, KEY_HOME,
-            KEY_ASSISTANT,
+            KEY_ASSISTANT, KEY_MUSIC,
         )
     }
 

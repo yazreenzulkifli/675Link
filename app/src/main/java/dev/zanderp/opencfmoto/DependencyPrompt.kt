@@ -42,8 +42,16 @@ object DependencyPrompt {
         OPEN_SETUP,
     }
 
-    fun audit(ctx: android.content.Context, forScan: Boolean = false): List<Issue> = buildList {
-        if (!SetupHelper.isAndroidAutoInstalled(ctx)) {
+    /**
+     * @param needsAndroidAuto false for the OpenCfMoto Map (own projection): it streams our own
+     *   screen, so Google Android Auto and Play services are not prerequisites.
+     */
+    fun audit(
+        ctx: android.content.Context,
+        forScan: Boolean = false,
+        needsAndroidAuto: Boolean = true,
+    ): List<Issue> = buildList {
+        if (needsAndroidAuto && !SetupHelper.isAndroidAutoInstalled(ctx)) {
             add(
                 Issue(
                     id = "aa",
@@ -54,7 +62,7 @@ object DependencyPrompt {
                 ),
             )
         }
-        if (!SetupHelper.isPlayServicesPresent(ctx)) {
+        if (needsAndroidAuto && !SetupHelper.isPlayServicesPresent(ctx)) {
             add(
                 Issue(
                     id = "gms",
@@ -119,8 +127,11 @@ object DependencyPrompt {
         }
     }
 
-    fun requiredMissing(ctx: android.content.Context, forScan: Boolean = false): List<Issue> =
-        audit(ctx, forScan).filter { it.required }
+    fun requiredMissing(
+        ctx: android.content.Context,
+        forScan: Boolean = false,
+        needsAndroidAuto: Boolean = true,
+    ): List<Issue> = audit(ctx, forScan, needsAndroidAuto).filter { it.required }
 
     /**
      * Soft launch hint — only for hard blockers (AA / Play services), and never while a connect
@@ -139,8 +150,12 @@ object DependencyPrompt {
     }
 
     /** Block Connect / Scan when something truly required is missing. */
-    fun showForConnect(activity: Activity, forScan: Boolean = false): Boolean {
-        val missing = requiredMissing(activity, forScan)
+    fun showForConnect(
+        activity: Activity,
+        forScan: Boolean = false,
+        needsAndroidAuto: Boolean = true,
+    ): Boolean {
+        val missing = requiredMissing(activity, forScan, needsAndroidAuto)
         if (missing.isEmpty()) return false
         show(activity, missing, alsoOptional = false)
         return true
@@ -167,6 +182,15 @@ object DependencyPrompt {
             }
         }
         val primary = required.firstOrNull() ?: optional.firstOrNull()
+        // Only permissions missing → same styled card as home step 1 (Permission).
+        if (required.size == 1 && required[0].action == Action.GRANT_PERMISSIONS) {
+            try {
+                HeadUnitDialog.showPermission(activity) { fix(activity, required[0]) }
+                return
+            } catch (e: Exception) {
+                LogBus.log("[deps] permission card failed: $e")
+            }
+        }
         val positiveLabel = when (primary?.action) {
             Action.INSTALL_ANDROID_AUTO -> "Install Android Auto"
             Action.INSTALL_PLAY_SERVICES -> "Install Play services"

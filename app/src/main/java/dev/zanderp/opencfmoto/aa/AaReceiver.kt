@@ -9,6 +9,7 @@ package dev.zanderp.opencfmoto.aa
 import android.content.Context
 import android.net.ConnectivityManager
 import dev.zanderp.opencfmoto.AaVideoBridge
+import dev.zanderp.opencfmoto.AppSettings
 import dev.zanderp.opencfmoto.BikeWifi
 import dev.zanderp.opencfmoto.NightPrefs
 import android.net.nsd.NsdManager
@@ -40,6 +41,8 @@ class AaReceiver(
         private const val FIRST_DIAL_DELAY_MS = 4_000L
         private const val DIAL_INTERVAL_MS = 2_000L
         private const val DIAL_ATTEMPTS = 20
+        /** Wait for AA's Home transition before stepping focus off the app list's "Exit" tile. */
+        private const val HOME_FOCUS_STEP_DELAY_MS = 1_500L
         private const val DIAL_TIMEOUT_MS = 800
     }
 
@@ -59,6 +62,8 @@ class AaReceiver(
     @Volatile private var sessionStarting = false
     private val sessionLock = Any()
     @Volatile private var steadyVideoFired = false
+    /** Serialises AA key/knob input for one session (see the Home → focus step in handleConnection). */
+    @Volatile private var inputExecutor: java.util.concurrent.ScheduledExecutorService? = null
 
     /**
      * Fired when an AA session ends. [userExit] is true when the rider tapped Exit in Android Auto
@@ -72,6 +77,7 @@ class AaReceiver(
         onFpsChanged = { fps ->
             log("[AA] decode fps=$fps")
             AaVideoBridge.aaDecoding = true
+            AaVideoBridge.headUnitStuck = false
             if (!steadyVideoFired && fps >= 25) {
                 steadyVideoFired = true
                 log("[AA] steady video reached (fps=$fps) — signalling ready for bike hand-off")
@@ -147,6 +153,8 @@ class AaReceiver(
 
     fun stop() {
         running = false
+        inputExecutor?.shutdownNow()
+        inputExecutor = null
         AaVideoBridge.aaSessionLive = false
         AaVideoBridge.aaDecoding = false
         AaVideoBridge.touchSink = null
@@ -210,6 +218,9 @@ class AaReceiver(
             // Server keeps listening — AA (or the user) can reconnect. On a genuine user Exit we
             // notify the owner so it can fully stop the bike link instead of leaving the dash frozen.
             try { onSessionEnded?.invoke(userExit) } catch (_: Exception) {}
+            // The head-unit-server path (AA 17.4+) only reconnects if we dial again — the
+            // self-mode re-trigger alone often can't (no BT MAC / startup activity not exported).
+            if (running && !userExit) redialHeadunitServer()
         }
         transport = t
         AaVideoBridge.aaSessionLive = true
@@ -235,8 +246,99 @@ class AaReceiver(
 
         // Phone/handlebar D-pad + rotary knob → Android Auto (drives a non-touch dash, and lets the
         // handlebar buttons navigate AA — see MediaButtonBridge). Cleared on transport quit / stop().
-        AaVideoBridge.keySink = { keycode -> input.sendKey(keycode) }
-        AaVideoBridge.scrollSink = { delta -> input.sendScroll(delta) }
+        // Home toggles AA to its app list, where focus starts on "Exit" — the next OK would quit
+        // Android Auto. After Home we step the knob once (focus → first real app; on the
+        // dashboard it just moves between items). AA ignores the step while it is still
+        // switching screens, so it goes out late, and every key/scroll pressed meanwhile is
+        // queued behind it on one thread — OK can never reach "Exit" straight after Home.
+        val inputQueue = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r ->
+            Thread(r, "aa-input").apply { isDaemon = true }
+        }
+        inputExecutor?.shutdownNow()
+        inputExecutor = inputQueue
+        val homeStepDue = java.util.concurrent.atomic.AtomicLong(0L)
+        fun runInOrder(block: () -> Unit) {
+            val wait = homeStepDue.get() - android.os.SystemClock.uptimeMillis()
+            val task = Runnable { try { if (transport === t) block() } catch (_: Exception) {} }
+            if (wait > 0) {
+                inputQueue.schedule(task, wait + 50, java.util.concurrent.TimeUnit.MILLISECONDS)
+            } else {
+                inputQueue.execute(task)
+            }
+        }
+        // A fresh AA session always opens on the dashboard (split screen).
+        AaVideoBridge.aaScreen = AaVideoBridge.AaScreen.DASHBOARD
+        AaVideoBridge.keySink = sink@{ keycode ->
+            // Maps + music only: Home never opens the app list. It toggles Music ⇄ Maps (the
+            // dashboard). From the dashboard/unknown → media key; from music (or anywhere else) →
+            // Home, which AA answers by returning to the dashboard when not already on it.
+            if (keycode == AaInput.KEY_HOME && AppSettings.mapsMusicOnly(context)) {
+                val onDash = AaVideoBridge.aaScreen == AaVideoBridge.AaScreen.DASHBOARD
+                if (onDash || AaVideoBridge.aaScreen == AaVideoBridge.AaScreen.UNKNOWN) {
+                    runInOrder { input.sendKey(AaInput.KEY_MUSIC) }
+                    AaVideoBridge.aaScreen = AaVideoBridge.AaScreen.MUSIC
+                } else {
+                    runInOrder { input.sendKey(AaInput.KEY_HOME) }
+                    AaVideoBridge.aaScreen = AaVideoBridge.AaScreen.DASHBOARD
+                }
+                return@sink
+            }
+            // Maps + music only: the rail is cropped off, so the buttons never move the (hidden)
+            // focus — OK = play/pause, ↑/↓ = previous/next song, ←/→ ignored. Nothing can select
+            // the app grid. Back passes through.
+            if (AppSettings.mapsMusicOnly(context)) {
+                val media = when (keycode) {
+                    AaInput.KEY_ENTER -> AaInput.KEY_MEDIA_PLAY_PAUSE
+                    AaInput.KEY_UP -> AaInput.KEY_MEDIA_PREVIOUS
+                    AaInput.KEY_DOWN -> AaInput.KEY_MEDIA_NEXT
+                    AaInput.KEY_LEFT, AaInput.KEY_RIGHT -> {
+                        log("[AA] maps+music only: ignoring D-pad $keycode (would move hidden focus)")
+                        return@sink
+                    }
+                    else -> null
+                }
+                if (media != null) {
+                    // Straight to the phone's music app — via AA it would echo off our capture session.
+                    dev.zanderp.opencfmoto.MediaButtonBridge.sendToMusicApp(context, media)
+                    return@sink
+                }
+            }
+            runInOrder { input.sendKey(keycode) }
+            val screen = AaVideoBridge.aaScreen
+            AaVideoBridge.aaScreen = when (keycode) {
+                // Home: dashboard → app list; app list stays; from inside an app → dashboard.
+                AaInput.KEY_HOME -> when (screen) {
+                    AaVideoBridge.AaScreen.DASHBOARD,
+                    AaVideoBridge.AaScreen.APP_LIST -> AaVideoBridge.AaScreen.APP_LIST
+                    else -> AaVideoBridge.AaScreen.DASHBOARD
+                }
+                AaInput.KEY_ENTER -> AaVideoBridge.AaScreen.OTHER   // most likely opened something
+                // Back closes the app list (→ dashboard); elsewhere we can't know where it lands.
+                AaInput.KEY_BACK ->
+                    if (screen == AaVideoBridge.AaScreen.APP_LIST) AaVideoBridge.AaScreen.DASHBOARD
+                    else AaVideoBridge.AaScreen.UNKNOWN
+                else -> screen
+            }
+            if (keycode == AaInput.KEY_HOME) {
+                homeStepDue.set(android.os.SystemClock.uptimeMillis() + HOME_FOCUS_STEP_DELAY_MS)
+                inputQueue.schedule(
+                    { try { if (transport === t) input.sendScroll(1) } catch (_: Exception) {} },
+                    HOME_FOCUS_STEP_DELAY_MS,
+                    java.util.concurrent.TimeUnit.MILLISECONDS,
+                )
+            }
+        }
+        AaVideoBridge.scrollSink = { delta ->
+            if (AppSettings.mapsMusicOnly(context)) {
+                // Knob back/forward (Dash view ▲/▼, handlebar ◀/▶) = previous / next song.
+                if (delta != 0) {
+                    val key = if (delta < 0) AaInput.KEY_MEDIA_PREVIOUS else AaInput.KEY_MEDIA_NEXT
+                    dev.zanderp.opencfmoto.MediaButtonBridge.sendToMusicApp(context, key)
+                }
+            } else {
+                runInOrder { input.sendScroll(delta) }
+            }
+        }
 
         // In-app HUD preview (HudViewActivity) touches — already in AA source space, sent as-is.
         AaVideoBridge.previewTouchSink = { action, pointerId, sx, sy -> input.sendTouch(action, pointerId, sx, sy) }
@@ -255,6 +357,7 @@ class AaReceiver(
         log("[AA] starting AAP handshake (version + SSL)…")
         if (!t.startHandshake(conn)) {
             log("[AA] handshake FAILED")
+            AaVideoBridge.headUnitStuck = true
             transport = null
             releaseSession()
             try { conn.disconnect() } catch (_: Exception) {}
@@ -262,6 +365,7 @@ class AaReceiver(
             return
         }
         log("[AA] handshake OK — pointing decoder at encoder surface and starting read loop")
+        AaVideoBridge.headUnitStuck = false
         videoDecoder.setSurface(encoderSurface)
         t.startReading()
         log("[AA] read loop started — expecting ServiceDiscovery then video")
@@ -281,6 +385,16 @@ class AaReceiver(
      * unmodified. Needs the rider to have started the server from Android Auto's developer settings
      * (tap Version 10x, then the overflow menu).
      */
+    /** Start another dial-out round after a dropped session (no-op if one is already running). */
+    fun redialHeadunitServer() {
+        if (!running || transport != null) return
+        if (dialThread?.isAlive == true) return
+        log("[AA] session dropped — dialling Android Auto head unit server again")
+        dialThread = thread(name = "aa-dial-hu", isDaemon = true) {
+            try { dialHeadunitServerLoop() } catch (_: InterruptedException) {}
+        }
+    }
+
     private fun dialHeadunitServerLoop() {
         Thread.sleep(FIRST_DIAL_DELAY_MS)
         var attempt = 0
@@ -310,6 +424,7 @@ class AaReceiver(
             Thread.sleep(DIAL_INTERVAL_MS)
         }
         if (running && transport == null) {
+            AaVideoBridge.headUnitStuck = true
             log(
                 "[AA] head unit server never answered on :$HEADUNIT_SERVER_PORT — in Android Auto " +
                     "tap Version 10x, then overflow menu → Start head unit server",

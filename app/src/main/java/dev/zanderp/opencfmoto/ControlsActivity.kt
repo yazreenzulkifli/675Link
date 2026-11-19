@@ -4,13 +4,11 @@
 package dev.zanderp.opencfmoto
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
@@ -22,8 +20,15 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.materialswitch.MaterialSwitch
+import android.content.Intent
+import android.graphics.Typeface
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.TextPaint
+import android.text.method.LinkMovementMethod
+import android.text.style.ClickableSpan
+import android.text.style.StyleSpan
+import android.view.HapticFeedbackConstants
 import dev.zanderp.opencfmoto.aa.AaInput
 
 /**
@@ -41,11 +46,15 @@ class ControlsActivity : AppCompatActivity() {
     private var syncingVolumeUi = false
     private var padFullscreen = false
     private lateinit var insetsController: WindowInsetsControllerCompat
-    private lateinit var btnPadFullscreen: MaterialButton
+    private lateinit var btnPadFullscreen: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         setContentView(R.layout.activity_controls)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.controls_root)) { v, insets ->
             val b = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -61,17 +70,6 @@ class ControlsActivity : AppCompatActivity() {
                 if (padFullscreen) setPadFullscreen(false) else finish()
             }
         })
-
-        // Navigate-to box.
-        val nav = findViewById<EditText>(R.id.et_nav)
-        findViewById<MaterialButton>(R.id.btn_nav_go).setOnClickListener {
-            val dest = nav.text?.toString()?.trim().orEmpty()
-            if (dest.isEmpty()) {
-                Toast.makeText(this, "Type a destination first", Toast.LENGTH_SHORT).show()
-            } else {
-                NavLauncher.navigate(this, dest, LogBus::log)
-            }
-        }
 
         // Volume slider — above the pad so riders can still set media/nav loudness when the bike's
         // ▲/▼ are hijacked for Android Auto navigation.
@@ -90,7 +88,9 @@ class ControlsActivity : AppCompatActivity() {
 
         // On-screen pad.
         btnPadFullscreen = findViewById(R.id.btn_pad_fullscreen)
-        btnPadFullscreen.setOnClickListener { setPadFullscreen(!padFullscreen) }
+        findViewById<View>(R.id.controls_back).setOnClickListener { finish() }
+        btnPadFullscreen.setOnClickListener { buzz(); setPadFullscreen(!padFullscreen) }
+        bindBikeSettingsLink()
         findViewById<View>(R.id.btn_knob_back).setOnClickListener { scroll(-1) }
         findViewById<View>(R.id.btn_knob_fwd).setOnClickListener { scroll(+1) }
         findViewById<View>(R.id.btn_dpad_up).setOnClickListener { key(AaInput.KEY_UP) }
@@ -105,41 +105,6 @@ class ControlsActivity : AppCompatActivity() {
             key(AaInput.KEY_ASSISTANT)
         }
 
-        // Touchscreen dashes (800MT, 1000 MT-X) run Android Auto's touch UI, which has no focus
-        // cursor for a rotary knob to move — so handlebar-button navigation can't work there and only
-        // costs the rider their music. Warn, and let them just tap the dash. The live profile is
-        // authoritative once connected; otherwise fall back to what the last connect remembered.
-        AppSettings.applyToHolder(this)
-        val live = BikeProfileHolder.active
-        val touchDash: Boolean? = if (live !== BikeProfiles.legacy) {
-            DashMemory.setLastDashTouch(this, BikeProfileHolder.advertisesScreenTouch)
-            BikeProfileHolder.advertisesScreenTouch
-        } else {
-            DashMemory.lastDashTouch(this)
-        }
-        if (touchDash == true) {
-            findViewById<View>(R.id.tv_touch_hint).visibility = View.VISIBLE
-        }
-
-        // Handlebar-button mode toggle (live-applied if the bridge is running).
-        val sw = findViewById<MaterialSwitch>(R.id.switch_control_aa)
-        sw.isChecked = ButtonMode.isControlAa(this)
-        sw.setOnCheckedChangeListener { _, checked ->
-            ButtonMode.set(this, checked)
-            MediaButtonBridge.instance?.setCaptureActive(checked)
-            LogBus.log("→ handlebar buttons ${if (checked) "control Android Auto" else "control media"}")
-            if (checked) ensureMicPermission()
-        }
-
-        findViewById<MaterialButton>(R.id.btn_customize).setOnClickListener {
-            startActivity(Intent(this, ButtonMappingActivity::class.java))
-        }
-
-        // Map theme (Maps day/night) — applies live to any running AA session.
-        findViewById<MaterialButton>(R.id.theme_auto).setOnClickListener { setMapTheme(MapTheme.AUTO) }
-        findViewById<MaterialButton>(R.id.theme_day).setOnClickListener { setMapTheme(MapTheme.DAY) }
-        findViewById<MaterialButton>(R.id.theme_night).setOnClickListener { setMapTheme(MapTheme.NIGHT) }
-        highlightTheme(NightPrefs.theme(this))
     }
 
     override fun onResume() {
@@ -155,11 +120,9 @@ class ControlsActivity : AppCompatActivity() {
         padFullscreen = on
         val hide = if (on) View.GONE else View.VISIBLE
         findViewById<View>(R.id.controls_header).visibility = hide
-        findViewById<View>(R.id.card_nav).visibility = hide
-        findViewById<View>(R.id.card_theme).visibility = hide
-        findViewById<View>(R.id.card_handlebar).visibility = hide
         findViewById<View>(R.id.pad_intro).visibility = hide
         findViewById<View>(R.id.tv_volume_hint).visibility = hide
+        findViewById<View>(R.id.controls_banner).visibility = hide
 
         val content = findViewById<LinearLayout>(R.id.controls_content)
         val pad = findViewById<View>(R.id.card_pad)
@@ -199,7 +162,7 @@ class ControlsActivity : AppCompatActivity() {
             row.gravity = android.view.Gravity.CENTER
             for (i in 0 until row.childCount) {
                 val child = row.getChildAt(i)
-                if (child is MaterialButton) {
+                if (child is TextView) {
                     val clp = child.layoutParams as LinearLayout.LayoutParams
                     clp.height = if (on) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT
                     child.layoutParams = clp
@@ -207,7 +170,7 @@ class ControlsActivity : AppCompatActivity() {
             }
         }
 
-        btnPadFullscreen.text = if (on) "Exit" else "Fullscreen"
+        btnPadFullscreen.setText(if (on) R.string.controls_exit_icon else R.string.controls_fullscreen_icon)
 
         if (on) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -233,33 +196,12 @@ class ControlsActivity : AppCompatActivity() {
         }
     }
 
-    private fun setMapTheme(theme: MapTheme) {
-        NightPrefs.setTheme(this, theme)
-        AaVideoBridge.nightSink?.invoke(NightPrefs.isNightNow(this))
-        highlightTheme(theme)
-        Toast.makeText(this, getString(R.string.setup_toast_map_theme, getString(theme.labelRes)), Toast.LENGTH_SHORT).show()
-    }
-
-    /** Paint the selected segment in brand color; the rest stay neutral tonal. */
-    private fun highlightTheme(selected: MapTheme) {
-        val onColor = ContextCompat.getColor(this, R.color.brand_orange)
-        val onText = ContextCompat.getColor(this, R.color.on_brand)
-        val offColor = ContextCompat.getColor(this, R.color.surface_high)
-        val offText = ContextCompat.getColor(this, R.color.text_primary)
-        val pairs = listOf(
-            R.id.theme_auto to MapTheme.AUTO,
-            R.id.theme_day to MapTheme.DAY,
-            R.id.theme_night to MapTheme.NIGHT,
-        )
-        for ((id, theme) in pairs) {
-            val btn = findViewById<MaterialButton>(id)
-            val on = theme == selected
-            btn.backgroundTintList = android.content.res.ColorStateList.valueOf(if (on) onColor else offColor)
-            btn.setTextColor(if (on) onText else offText)
-        }
+    private fun buzz() {
+        window.decorView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
     }
 
     private fun key(code: Int) {
+        buzz()
         val map = MapInputBridge.keySink
         if (map != null) {
             map(code)
@@ -274,6 +216,7 @@ class ControlsActivity : AppCompatActivity() {
     }
 
     private fun scroll(delta: Int) {
+        buzz()
         val map = MapInputBridge.scrollSink
         if (map != null) {
             map(delta)
@@ -285,6 +228,29 @@ class ControlsActivity : AppCompatActivity() {
         } else {
             sink(delta)
         }
+    }
+
+    /** Makes "Bike Settings." in the remap banner tappable (opens the handlebar-button mapping). */
+    private fun bindBikeSettingsLink() {
+        val tv = findViewById<TextView>(R.id.tv_bike_settings_link)
+        val link = getString(R.string.controls_bike_settings)
+        val full = getString(R.string.controls_remap_banner)
+        val start = full.indexOf(link)
+        if (start < 0) return
+        val s = SpannableString(full)
+        val span = object : ClickableSpan() {
+            override fun onClick(widget: View) {
+                startActivity(Intent(this@ControlsActivity, ButtonMappingActivity::class.java))
+            }
+            override fun updateDrawState(ds: TextPaint) {
+                ds.color = ContextCompat.getColor(this@ControlsActivity, R.color.ctl_red)
+                ds.isUnderlineText = true
+            }
+        }
+        s.setSpan(span, start, start + link.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        s.setSpan(StyleSpan(Typeface.BOLD), start, start + link.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        tv.text = s
+        tv.movementMethod = LinkMovementMethod.getInstance()
     }
 
     /** The Assistant needs the mic to hear you — ask for it the first time voice is used. */

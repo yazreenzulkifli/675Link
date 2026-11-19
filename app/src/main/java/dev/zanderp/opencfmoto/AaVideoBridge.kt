@@ -11,6 +11,18 @@ import android.os.SystemClock
 object AaVideoBridge {
     @Volatile var pipeline: VideoPipeline? = null
 
+    /** Best guess at which Android Auto screen is showing (AA never tells the head unit). */
+    enum class AaScreen { UNKNOWN, DASHBOARD, APP_LIST, OTHER, MUSIC }
+
+    /**
+     * Kept by [dev.zanderp.opencfmoto.aa.AaReceiver] from every key it sends (Dash view, handlebar,
+     * dummy dash). Observed on AA 18: a session starts on the dashboard; Home on the dashboard opens
+     * the app list, Home on the app list stays there; OK most likely opens something; Back is
+     * unknown. Touches set it to UNKNOWN. Used by "go to the dashboard" (skip when there, Back
+     * from the app list, Home otherwise).
+     */
+    @Volatile var aaScreen: AaScreen = AaScreen.UNKNOWN
+
     /**
      * True while an AAP session is up on :5288 (handshake started / video may be flowing).
      * Used to avoid re-firing self-mode broadcasts that would kill a healthy AA session.
@@ -22,6 +34,9 @@ object AaVideoBridge {
 
     /** True once we have decoded at least one AA video fps sample this session. */
     @Volatile var aaDecoding: Boolean = false
+
+    /** Android Auto's head unit server is listening but not answering us (handshake failed / never answered). */
+    @Volatile var headUnitStuck: Boolean = false
 
     /**
      * Until this elapsedRealtime, AA is starting guidance / media sink audio. The button bridge
