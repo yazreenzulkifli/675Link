@@ -351,6 +351,8 @@
     <string name="usb_probe_clear">Clear</string>
     <string name="usb_probe_status_idle">Waiting for a USB accessory…</string>
     <string name="usb_probe_status_off">Probe is off — turn it on and reconnect.</string>
+    <string name="usb_probe_status_getting_ready">Getting Android Auto ready… wait before Detect Phone</string>
+    <string name="usb_probe_status_ready">Android Auto ready — plug in / Detect Phone now</string>
     <string name="usb_probe_status_open">Accessory open — listening</string>
     <string name="usb_probe_status_failed">Could not open the accessory</string>
     <string name="setup_screen_margins">Screen margins…</string>

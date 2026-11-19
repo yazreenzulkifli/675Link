@@ -114,6 +114,11 @@ object UsbCarLink {
      */
     fun isWarm(): Boolean = localUp && AaVideoBridge.aaDecoding
 
+    /** For the status text: servers up and the Android Auto session alive (decoding flag can lag behind). */
+    fun isReadyForCar(): Boolean =
+        (localUp || BikeLink.prober?.isLoopbackUp == true) &&
+            (AaVideoBridge.aaDecoding || AaVideoBridge.aaSessionLive)
+
     // ------------------------------------------------------------------ logging
 
     private val fileLock = Any()
@@ -148,6 +153,7 @@ object UsbCarLink {
     // ------------------------------------------------------------------ auto-connect watcher
 
     @Volatile private var watching = false
+    val isWatching: Boolean get() = watching
     private var permReceiver: BroadcastReceiver? = null
 
     private fun permissionAction(app: Context) = "${app.packageName}.USB_PROBE_PERMISSION"
@@ -184,12 +190,15 @@ object UsbCarLink {
         permReceiver = r
         kotlin.concurrent.thread(name = "usb-car-watch", isDaemon = true) {
             var lastAsk = 0L
+            var noPermSince = 0L
             while (watching) {
                 try { Thread.sleep(800) } catch (_: InterruptedException) { break }
-                if (isOpen || !UsbProbePrefs.enabled(app)) continue
-                val acc = try { usb.accessoryList?.firstOrNull() } catch (_: Exception) { null } ?: continue
+                if (isOpen || !UsbProbePrefs.enabled(app)) { noPermSince = 0L; continue }
+                val acc = try { usb.accessoryList?.firstOrNull() } catch (_: Exception) { null }
+                if (acc == null) { noPermSince = 0L; continue }
                 try {
                     if (usb.hasPermission(acc)) {
+                        noPermSince = 0L
                         log("car attached — opening the link")
                         openAndAutoStart(app, acc, usb)
                     } else if (System.currentTimeMillis() - lastAsk > 6000) {
@@ -209,12 +218,24 @@ object UsbCarLink {
         log("watching for the car — plug in the USB cable any time")
     }
 
+    /** Start the watcher if needed; either way the log ends with the "watching for the car" line. */
+    fun ensureWatching(ctx: Context) {
+        if (watching) log("watching for the car — plug in the USB cable any time")
+        else startWatching(ctx)
+    }
+
     /** Open the link; if Android Auto is not already live, ask the app to start it (best effort). */
     private fun openAndAutoStart(app: Context, acc: UsbAccessory, usb: UsbManager) {
         open(app, acc, usb)
         if (isOpen && UsbProbePrefs.autoStart(app) && UsbProbePrefs.bridge(app) &&
             claimAutoStart() && !isWarm()
         ) {
+            val p = ConnectionState.phase
+            if (AndroidAutoService.isRunning && p != Phase.ERROR && p != Phase.STOPPED && p != Phase.IDLE) {
+                // Restarting here would tear down a handshake that is already in progress.
+                log("Android Auto is already starting — waiting for it (not restarting)")
+                return
+            }
             log("Android Auto is not ready yet — starting it now")
             try {
                 UsbCarStart.start(app)

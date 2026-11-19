@@ -137,6 +137,10 @@ class AndroidAutoService : Service() {
         if (!prober.isRunning) return
         val now = System.currentTimeMillis()
         if (now < softSwitchGraceUntil) return
+        // USB car: the head unit closes and re-opens its media streams on its own (often for
+        // 10-15 s). Dropping the control sockets in that gap made the car give up and drop USB,
+        // so the no-frames watchdog stays out of the way for the USB link.
+        if (BikeProfileHolder.carUsbTouch) return
         when {
             ConnectionState.phase == Phase.STREAMING &&
                 prober.msSinceLastFrame() > STALL_MS &&

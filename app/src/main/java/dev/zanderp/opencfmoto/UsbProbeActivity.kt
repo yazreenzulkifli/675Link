@@ -98,10 +98,17 @@ class UsbProbeActivity : AppCompatActivity() {
         handleIntent(intent)
         if (intent.action != UsbManager.ACTION_USB_ACCESSORY_ATTACHED &&
             UsbProbePrefs.enabled(this) && UsbProbePrefs.autoStart(this) && UsbProbePrefs.bridge(this) &&
-            !UsbCarLink.isOpen && !UsbCarLink.isWarm()
+            !UsbCarLink.isOpen && !UsbCarLink.isWarm() && !androidAutoAlreadyStarting()
         ) {
             ui.postDelayed({ if (!isFinishing) startAndroidAuto() }, 600)
         }
+    }
+
+    /** Android Auto is already coming up (or up): don't tear it down and start over. */
+    private fun androidAutoAlreadyStarting(): Boolean {
+        if (!AndroidAutoService.isRunning) return false
+        val p = ConnectionState.phase
+        return p != Phase.ERROR && p != Phase.STOPPED && p != Phase.IDLE
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -177,9 +184,25 @@ class UsbProbeActivity : AppCompatActivity() {
 
     private fun refreshStatus() {
         statusView.text = getString(
-            if (UsbCarLink.isOpen) R.string.usb_probe_status_open else R.string.usb_probe_status_idle,
+            when {
+                UsbCarLink.isOpen -> R.string.usb_probe_status_open
+                UsbCarLink.isReadyForCar() -> R.string.usb_probe_status_ready
+                AndroidAutoService.isRunning -> R.string.usb_probe_status_getting_ready
+                else -> R.string.usb_probe_status_idle
+            },
         )
     }
+
+    private val statusTick = object : Runnable {
+        override fun run() {
+            if (isFinishing) return
+            refreshStatus()
+            ui.postDelayed(this, 1_000L)
+        }
+    }
+
+    override fun onResume() { super.onResume(); ui.post(statusTick) }
+    override fun onPause() { ui.removeCallbacks(statusTick); super.onPause() }
 
     private fun startAndroidAuto() {
         UsbCarLink.log(

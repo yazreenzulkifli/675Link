@@ -232,6 +232,9 @@ class EasyConnProber(
     /** True when started via [startLoopback] (USB car link): no Wi-Fi probing / reconnect probes. */
     @Volatile private var usbMode = false
 
+    /** USB car mode: the loopback servers are listening (what the USB bridge relays to). */
+    val isLoopbackUp: Boolean get() = running && usbMode && servers.isNotEmpty()
+
     /**
      * USB-car mode (Perodua / Carbit "Oversea"): the head unit reaches the PXC/media servers through
      * an ADB-style USB tunnel that the phone side ([UsbAdbBridge]) relays to loopback sockets. So we
