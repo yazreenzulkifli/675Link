@@ -11,7 +11,6 @@ import android.provider.Settings
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -266,7 +265,7 @@ class SetupActivity : AppCompatActivity() {
                 return
             }
             val onto = BikeMemory.lastBikeName(this) ?: "the selected bike"
-            AlertDialog.Builder(this)
+            GlassAlertBuilder(this)
                 .setTitle("Import settings?")
                 .setMessage(
                     "Replace bike tuning for $onto — profile, resolution, fit, power, margins, " +
@@ -335,7 +334,7 @@ class SetupActivity : AppCompatActivity() {
             macs.add(mac)
             names.add(name)
         }
-        AlertDialog.Builder(this)
+        GlassAlertBuilder(this)
             .setTitle(R.string.setup_bt_trigger_pick)
             .setItems(labels.toTypedArray()) { _, which ->
                 AppSettings.setBtTrigger(this, macs[which], names[which])

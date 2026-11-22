@@ -629,7 +629,7 @@ class GpxActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("gmaps_nav", Context.MODE_PRIVATE)
         if (prefs.getBoolean("asked", false)) return false
         prefs.edit().putBoolean("asked", true).apply()
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        GlassAlertBuilder(this)
             .setTitle("Google Maps turns on the dash?")
             .setMessage(
                 "Navigate in Google Maps on your phone and the dash map shows the next turn, " +

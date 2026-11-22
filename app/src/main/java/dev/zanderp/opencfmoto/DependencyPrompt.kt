@@ -10,7 +10,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
@@ -200,7 +199,7 @@ object DependencyPrompt {
             Action.OPEN_SETUP, null -> "Open Setup"
         }
         try {
-            AlertDialog.Builder(activity)
+            GlassAlertBuilder(activity)
                 .setTitle("Missing dependencies")
                 .setMessage(body)
                 .setPositiveButton(positiveLabel) { _, _ ->

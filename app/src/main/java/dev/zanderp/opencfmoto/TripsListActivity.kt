@@ -25,7 +25,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -402,7 +401,7 @@ class TripsListActivity : AppCompatActivity() {
     }
 
     private fun confirmDelete(trip: Trip) {
-        MaterialAlertDialogBuilder(this)
+        GlassAlertBuilder(this)
             .setTitle(R.string.trips_delete_trip_title)
             .setMessage("${trip.dateText()} · ${trip.distanceText()}")
             .setPositiveButton(R.string.trips_delete) { _, _ ->

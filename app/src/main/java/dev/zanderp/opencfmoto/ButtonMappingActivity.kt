@@ -18,7 +18,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
  * Remap what each handlebar gesture does, and keep the destinations a button can navigate to. Rows
@@ -97,7 +96,7 @@ class ButtonMappingActivity : AppCompatActivity() {
         val actions = ButtonAction.entries
         val labels = actions.map { it.displayLabel(this) }.toTypedArray()
         val current = actions.indexOf(ButtonMap.get(this, gesture))
-        MaterialAlertDialogBuilder(this)
+        GlassAlertBuilder(this)
             .setTitle(gesture.label)
             .setSingleChoiceItems(labels, current) { dialog, which ->
                 val action = actions[which]
@@ -203,7 +202,7 @@ class ButtonMappingActivity : AppCompatActivity() {
             return
         }
         val gestures = ButtonGesture.entries
-        MaterialAlertDialogBuilder(this)
+        GlassAlertBuilder(this)
             .setTitle(R.string.buttons_teach_remote_pick)
             .setItems(gestures.map { it.label }.toTypedArray()) { _, which ->
                 waitForRemoteKey(gestures[which])
@@ -213,7 +212,7 @@ class ButtonMappingActivity : AppCompatActivity() {
     }
 
     private fun waitForRemoteKey(gesture: ButtonGesture) {
-        val dlg = MaterialAlertDialogBuilder(this)
+        val dlg = GlassAlertBuilder(this)
             .setTitle(R.string.buttons_teach_remote_wait)
             .setMessage(gesture.label)
             .setNegativeButton(android.R.string.cancel) { _, _ -> RemotePad.teachListener = null }
@@ -257,7 +256,7 @@ class ButtonMappingActivity : AppCompatActivity() {
     }
 
     private fun teachHandlebar() {
-        MaterialAlertDialogBuilder(this)
+        GlassAlertBuilder(this)
             .setTitle(R.string.buttons_teach_title)
             .setMessage(R.string.buttons_teach_message)
             .setPositiveButton(R.string.buttons_teach_volume_present) { _, _ ->
@@ -288,11 +287,11 @@ class ButtonMappingActivity : AppCompatActivity() {
     private fun pickClusterPreset() {
         val presets = ButtonClusterPreset.entries
         val labels = presets.map { it.title }.toTypedArray()
-        MaterialAlertDialogBuilder(this)
+        GlassAlertBuilder(this)
             .setTitle("Left switch cluster")
             .setItems(labels) { _, which ->
                 val preset = presets[which]
-                MaterialAlertDialogBuilder(this)
+                GlassAlertBuilder(this)
                     .setTitle(preset.title)
                     .setMessage(preset.summary + "\n\nReplace the current mapping for this bike? Saved places are kept.")
                     .setPositiveButton("Apply") { _, _ ->
@@ -315,7 +314,7 @@ class ButtonMappingActivity : AppCompatActivity() {
     }
 
     private fun confirmClearPreset() {
-        MaterialAlertDialogBuilder(this)
+        GlassAlertBuilder(this)
             .setTitle("Clear cluster preset?")
             .setMessage(
                 "Removes the active cluster tag and restores shipped gesture defaults. " +
@@ -332,7 +331,7 @@ class ButtonMappingActivity : AppCompatActivity() {
     }
 
     private fun confirmReset() {
-        MaterialAlertDialogBuilder(this)
+        GlassAlertBuilder(this)
             .setTitle("Reset to defaults?")
             .setMessage(
                 "Every gesture goes back to the shipped defaults: ◀/▶ = knob, " +

@@ -15,6 +15,15 @@ class LogRedactorTest {
     }
 
     @Test
+    fun redactsStandardWifiQrPassword() {
+        val out = LogRedactor.redact("QR raw: WIFI:T:WPA;S:ZXMOTO-999ABB;P:sup\\;ersecret;H:false;;")
+        assertFalse(out.contains("ersecret"))
+        assertTrue(out.contains("S:ZXMOTO-999ABB"))
+        assertTrue(out.contains("P:«redacted»"))
+        assertTrue(out.contains("H:false"))
+    }
+
+    @Test
     fun masksSerialTail() {
         val out = LogRedactor.redact("""{"HUID":"CRCP230501740"}""")
         assertTrue(out.contains("CRCP"))

@@ -8,7 +8,6 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 
@@ -52,7 +51,7 @@ object ManualWifiPairing {
         val pwd = field("Password", password = true)
         val name = field("Bike name (optional)")
 
-        val dialog = MaterialAlertDialogBuilder(activity)
+        val dialog = GlassAlertBuilder(activity)
             .setTitle("Enter bike Wi‑Fi")
             .setMessage(
                 "For dashes that show SSID + password instead of a QR (e.g. Benelli TRK). " +

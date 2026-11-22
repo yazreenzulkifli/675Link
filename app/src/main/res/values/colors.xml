@@ -53,4 +53,7 @@
     <color name="ctl_bg_start">#FFF5F6</color>
     <color name="ctl_bg_end">#F9F9FF</color>
     <color name="ctl_muted">#94A3B8</color>
+    <!-- Aero Glaze popups (all dialogs). -->
+    <color name="glass_dialog_fill">#EB111827</color>
+    <color name="glass_cyan_light">#22D3EE</color>
 </resources>

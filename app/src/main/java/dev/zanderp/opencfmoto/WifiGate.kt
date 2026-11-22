@@ -13,7 +13,6 @@ import android.content.Intent
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.provider.Settings
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
  * Phone Wi‑Fi must be on before we can join the bike AP / P2P group. When it's off, join silently
@@ -102,7 +101,7 @@ object WifiGate {
         if (promptShowing) return
         promptShowing = true
         try {
-            MaterialAlertDialogBuilder(activity)
+            GlassAlertBuilder(activity)
                 .setTitle("Turn on Wi‑Fi")
                 .setMessage(
                     "OpenCfMoto joins the bike over Wi‑Fi, but your phone’s Wi‑Fi is off.\n\n" +

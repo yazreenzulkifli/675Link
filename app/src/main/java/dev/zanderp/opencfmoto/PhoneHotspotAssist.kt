@@ -12,7 +12,6 @@ import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
  * UX helpers for Carbit `action=128` (phone hosts hotspot; dash is STA).
@@ -102,7 +101,7 @@ object PhoneHotspotAssist {
             addView(pwdField)
         }
         val macHint = qr.mac?.takeIf { it.isNotBlank() }?.let { "\nMAC: $it" }.orEmpty()
-        MaterialAlertDialogBuilder(activity)
+        GlassAlertBuilder(activity)
             .setTitle(R.string.main_phone_hotspot_dialog_title)
             .setMessage(activity.getString(R.string.main_phone_hotspot_dialog_message) + macHint)
             .setView(box)

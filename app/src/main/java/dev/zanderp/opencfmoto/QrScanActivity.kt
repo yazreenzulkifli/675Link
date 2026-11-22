@@ -53,6 +53,18 @@ class QrScanActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_qr_scan)
+        // Edge-to-edge: lift the bottom panel above the navigation bar so "Import QR from photo"
+        // is not hidden behind it.
+        findViewById<android.view.View>(R.id.bottom_bar).let { bar ->
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(bar) { v, insets ->
+                val sys = insets.getInsets(
+                    androidx.core.view.WindowInsetsCompat.Type.systemBars() or
+                        androidx.core.view.WindowInsetsCompat.Type.displayCutout()
+                )
+                v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, sys.bottom)
+                insets
+            }
+        }
         findViewById<Button>(R.id.btn_qr_photo).setOnClickListener {
             photoPicker.launch("image/*")
         }

@@ -71,6 +71,11 @@ class MainActivity : AppCompatActivity() {
             return@registerForActivityResult
         }
         log("QR raw: $raw")
+        log(
+            "QR shape: len=${raw.length} prefix='${raw.take(12)}' " +
+                "hasSsid=${raw.contains("ssid=", true) || raw.startsWith("WIFI:", true)} " +
+                "bytes=${raw.take(24).map { it.code }.joinToString(",")}"
+        )
         val qr = QrData.parse(raw)
         if (qr == null) {
             val hint = QrData.parseFailureHint(raw)
@@ -259,7 +264,7 @@ class MainActivity : AppCompatActivity() {
                 if (tfts.isEmpty() || isFinishing || isDestroyed) return@runOnUiThread
                 val tft = tfts.joinToString()
                 log("→ TFT '$tft' is on Bluetooth audio — suggesting Wi‑Fi only (Media audio + Calls off)")
-                com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                GlassAlertBuilder(this)
                     .setTitle(R.string.tft_bt_audio_title)
                     .setMessage(getString(R.string.tft_bt_audio_message, tft))
                     .setPositiveButton(R.string.tft_bt_audio_open) { _, _ -> BluetoothHelper.openBluetoothSettings(this) }
@@ -303,7 +308,7 @@ class MainActivity : AppCompatActivity() {
             } else {
                 getString(R.string.main_aa_need_bt_on_message)
             }
-            com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            GlassAlertBuilder(this)
                 .setTitle(R.string.main_aa_need_nearby_title)
                 .setMessage(msg)
                 .setPositiveButton(R.string.main_aa_need_nearby_settings) { _, _ ->
@@ -334,7 +339,7 @@ class MainActivity : AppCompatActivity() {
     private fun maybeShowCrashRecovery() {
         if (CrashGuard.pendingCrashText(this) == null) return
         try {
-            androidx.appcompat.app.AlertDialog.Builder(this)
+            GlassAlertBuilder(this)
                 .setTitle(R.string.main_crash_title)
                 .setMessage(
                     "OpenCfMoto closed unexpectedly last time. The log and crash report were saved — " +
@@ -373,7 +378,7 @@ class MainActivity : AppCompatActivity() {
                         ProjectionHolder.projection = mpm.getMediaProjection(code, data)
                         GpxSession.clear()
                         log("screen-capture armed (FGS up after ${tries * 100}ms) — pick Entire screen or a single app (Android 14+)")
-                        androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
+                        GlassAlertBuilder(this@MainActivity)
                             .setTitle(R.string.main_mirror_ready_title)
                             .setMessage(
                                 "Entire screen — best for riding. " +
@@ -1941,7 +1946,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun promptCloseRival() {
         val installed = RivalClient.isInstalled(this)
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+        GlassAlertBuilder(this)
             .setTitle(R.string.main_rival_title)
             .setMessage(
                 "The official CFMoto/EasyConnect app is running and holding the bike's link ports, so " +
@@ -1971,7 +1976,7 @@ class MainActivity : AppCompatActivity() {
      * Offer a shortcut into system VPN settings; the user must disable the kill-switch or VPN.
      */
     private fun promptVpnKillSwitch() {
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+        GlassAlertBuilder(this)
             .setTitle("VPN is blocking the bike")
             .setMessage(
                 "Android Auto reached the phone, but a VPN kill-switch is blocking the bike Wi‑Fi " +
@@ -2247,7 +2252,7 @@ class MainActivity : AppCompatActivity() {
                     )
                     runOnUiThread {
                         ConnectionState.set(Phase.ERROR, getString(R.string.main_phone_hotspot_no_iface))
-                        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                        GlassAlertBuilder(this)
                             .setTitle(R.string.main_phone_hotspot_dialog_title)
                             .setMessage(R.string.main_phone_hotspot_no_iface)
                             .setPositiveButton(R.string.main_phone_hotspot_open_settings) { _, _ ->
@@ -2717,7 +2722,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showUpdateDialog(release: UpdateChecker.Release) {
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+        val dialog = GlassAlertBuilder(this)
             .setTitle("Update ${release.version}")
             .setMessage(ReleaseNotes.toSpanned(release.notes))
             .setPositiveButton("Download") { _, _ ->
@@ -2758,7 +2763,7 @@ class MainActivity : AppCompatActivity() {
             addView(model)
             addView(year)
         }
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        GlassAlertBuilder(this)
             .setTitle(R.string.main_report_a_problem)
             .setMessage(R.string.main_report_problem_message)
             .setView(box)

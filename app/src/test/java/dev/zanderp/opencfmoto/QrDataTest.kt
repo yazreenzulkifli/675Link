@@ -22,6 +22,28 @@ class QrDataTest {
     }
 
     @Test
+    fun parsesStandardWifiQr() {
+        val qr = QrData.parse("WIFI:T:WPA;S:ZXMOTO-999ABB;P:12345678;H:false;;")!!
+        assertEquals("ZXMOTO-999ABB", qr.ssid)
+        assertEquals("12345678", qr.pwd)
+        assertEquals(1, qr.action)
+        assertTrue(qr.supportsAp)
+        assertFalse(qr.supportsP2p)
+    }
+
+    @Test
+    fun parsesStandardWifiQrWithEscapesAndReorderedFields() {
+        val qr = QrData.parse("WIFI:P:pa\\;ss\\\\word;S:My\\:Dash;T:WPA;;")!!
+        assertEquals("My:Dash", qr.ssid)
+        assertEquals("pa;ss\\word", qr.pwd)
+    }
+
+    @Test
+    fun rejectsStandardWifiQrWithoutPassword() {
+        assertNull(QrData.parse("WIFI:T:nopass;S:OpenDash;;"))
+    }
+
+    @Test
     fun parsesMotoMoriniWifiHashFormat() {
         val raw =
             "http://admin.motomorini.com/app.html?Wifi=ML174167#12345678#dc0d30da1b6c" +

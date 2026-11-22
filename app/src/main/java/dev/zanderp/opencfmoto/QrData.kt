@@ -49,7 +49,39 @@ data class QrData(
             parseCarbitToken(trimmed)?.let { return it }
             parseMotoMorini(trimmed)?.let { return it }
             parseThinkerride(trimmed)?.let { return it }
+            parseStandardWifi(trimmed)?.let { return it }
             return null
+        }
+
+        /**
+         * Standard Wi‑Fi QR: `WIFI:T:WPA;S:<ssid>;P:<pwd>;H:false;;` (ZXMOTO and generic dashes).
+         * Treated as a SoftAP join (action=1). Special chars `\ ; , : "` are backslash-escaped.
+         */
+        private fun parseStandardWifi(raw: String): QrData? {
+            if (!raw.startsWith("WIFI:", ignoreCase = true)) return null
+            val fields = HashMap<String, String>()
+            val body = raw.substring(5)
+            var i = 0
+            while (i < body.length) {
+                val key = StringBuilder()
+                while (i < body.length && body[i] != ':' && body[i] != ';') key.append(body[i++])
+                if (i >= body.length || body[i] == ';') { i++; continue }
+                i++ // ':'
+                val v = StringBuilder()
+                while (i < body.length && body[i] != ';') {
+                    if (body[i] == '\\' && i + 1 < body.length) i++
+                    v.append(body[i++])
+                }
+                i++ // ';'
+                fields[key.toString().trim().uppercase()] = v.toString()
+            }
+            val ssid = fields["S"].orEmpty().trim()
+            val pwd = fields["P"].orEmpty()
+            if (ssid.isEmpty() || pwd.isEmpty()) return null
+            return QrData(
+                ssid = ssid, pwd = pwd, auth = "wpa2-psk", mac = null, name = ssid,
+                action = 1, modelId = null, sn = null, channel = null,
+            )
         }
 
         /**

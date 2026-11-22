@@ -22,6 +22,10 @@ object LogRedactor {
         """\b(pwd|password|psk|passphrase)=([^&\s"]*)""",
         RegexOption.IGNORE_CASE,
     )
+    /** Standard Wi‑Fi QR `WIFI:T:WPA;S:ssid;P:secret;;` — mask the P: field (backslash-escaped `;` allowed). */
+    private val WIFI_QR_SECRET = Regex(
+        """(?i)(WIFI:[^\r\n]*?;P:)((?:\\.|[^;\\])*)""",
+    )
     private val JSON_SERIAL = Regex(
         """("(?:HUID|sn|uuid|carHuid)"\s*:\s*)"([^"]*)"""",
         RegexOption.IGNORE_CASE,
@@ -35,6 +39,7 @@ object LogRedactor {
         var s = line
         s = JSON_SECRET.replace(s) { m -> m.groupValues[1] + "\"$MASK\"" }
         s = URL_SECRET.replace(s) { m -> m.groupValues[1] + "=" + MASK }
+        s = WIFI_QR_SECRET.replace(s) { m -> m.groupValues[1] + MASK }
         s = JSON_SERIAL.replace(s) { m -> m.groupValues[1] + "\"" + maskTail(m.groupValues[2]) + "\"" }
         s = BARE_SERIAL.replace(s) { m -> m.groupValues[1] + "=" + maskTail(m.groupValues[2]) }
         return s

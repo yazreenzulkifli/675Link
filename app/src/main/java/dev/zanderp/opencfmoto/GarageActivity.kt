@@ -23,7 +23,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.io.File
 
 /**
@@ -249,7 +248,7 @@ class GarageActivity : AppCompatActivity() {
             add("Remove bike")
         }.toTypedArray()
 
-        MaterialAlertDialogBuilder(this)
+        GlassAlertBuilder(this)
             .setTitle(bike.name)
             .setItems(items) { _, which ->
                 when (items[which]) {
@@ -285,7 +284,7 @@ class GarageActivity : AppCompatActivity() {
             setPadding(pad, dp(8), pad, 0)
             addView(input)
         }
-        MaterialAlertDialogBuilder(this)
+        GlassAlertBuilder(this)
             .setTitle("Rename bike")
             .setView(wrap)
             .setPositiveButton("Save") { _, _ ->
@@ -297,7 +296,7 @@ class GarageActivity : AppCompatActivity() {
     }
 
     private fun confirmRemove(bike: SavedBike) {
-        MaterialAlertDialogBuilder(this)
+        GlassAlertBuilder(this)
             .setTitle("Remove ${bike.name}?")
             .setMessage("This forgets its pairing, photo and settings. You can re-scan the dash QR or enter Wi‑Fi again later.")
             .setPositiveButton("Remove") { _, _ ->
