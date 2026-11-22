@@ -2598,6 +2598,7 @@ class MainActivity : AppCompatActivity() {
         try { GpxSession.clear() } catch (_: Exception) {}
         try { ProjectionService.stop(this) } catch (e: Exception) { log("projection stop: $e") }
         try { DashClockBle.stop() } catch (_: Exception) {}
+        MirrorOrientationLock.clear(this)
         try { BikeWifi.releaseSession(this, ::log) } catch (e: Exception) { log("wifi leave: $e") }
         ConnectionState.set(Phase.STOPPED, "")
     }
@@ -2638,7 +2639,8 @@ class MainActivity : AppCompatActivity() {
         }
         log("→ Mirror: cast phone screen to dash")
         pendingAaStart = false
-        MirrorOrientationLock.apply(this)
+        // Don't rotate yet: the home screen is portrait-only. The lock is applied in
+        // startMirrorLink(), right before the app goes to the background.
         ensureLocationPermission()
         try {
             val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
