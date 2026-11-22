@@ -149,9 +149,11 @@ class GmapsNavListener : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (sbn.packageName != MAPS_PKG) return
+        val waze = sbn.packageName == WAZE_PKG
+        if (sbn.packageName != MAPS_PKG && !waze) return
         val n = sbn.notification ?: return
-        if (!isNavNotification(sbn, n)) return
+        // Waze: only its real navigation notification (it also posts an always-on "Waze is running" one).
+        if (if (waze) n.category != Notification.CATEGORY_NAVIGATION else !isNavNotification(sbn, n)) return
         val ex = n.extras
         val title = ex.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         val text = ex.getCharSequence(Notification.EXTRA_TEXT)?.toString()
@@ -239,5 +241,6 @@ class GmapsNavListener : NotificationListenerService() {
 
     companion object {
         private const val MAPS_PKG = "com.google.android.apps.maps"
+        private const val WAZE_PKG = "com.waze"
     }
 }

@@ -74,6 +74,7 @@ contributors. It keeps everything OpenCfMoto does and adds:
 | 🩺 **Head unit health** | The **Head unit** tile shows **Online**, **Offline** or **Needs restart** (server on but not answering) and opens an animated guide to start, stop or restart it. |
 | 🚗 **Car mode over USB** | Android Auto on **Perodua Smart Link / Carbit "Oversea"** car head units through the USB cable — hands-free connect. [More](#-car-mode-usb-experimental) |
 | 🔔 **Ride finished reminder** | Reminds you to turn off 675Link and Android Auto's head unit server 5 minutes after a ride, so they stop draining the battery. [More](#-ride-finished-reminder) |
+| 🧭 **Google Maps or Waze** | Pick your default navigation app in **Setup → Navigation app**. The Map button, Destination tile, Navigate to… and handlebar nav buttons open it (Google Maps if Waze isn't installed). |
 | 📷 **Plain Wi‑Fi QR codes** | Pairs with dashes that show a standard `WIFI:` QR (ZXMOTO and others), not only MotoPlay QRs. |
 | 🪟 **One popup design** | Every popup uses the same frosted glass card: blur behind (Android 12+), cyan main button, glass Cancel, soft bounce-in. |
 | 🔄 **Updates from 675Link** | The in-app update check looks at this repo's [Releases](https://github.com/yazreenzulkifli/675Link/releases). |
@@ -374,7 +375,7 @@ No API key needed. For stricter avoid-highways / tolls, paste your own free
 | **+ Scan QR** | Pair a new dash. |
 | **Dash view** | Live dash on the phone, with touch and on-screen controls. |
 | **Garage** | Your bikes and the car — select, rename, photo, add, remove. |
-| **Map** | Built-in Map / GPX on the dash or phone. |
+| **Map** | Opens your navigation app (Google Maps or Waze — Setup → Navigation app). Long-press for the built-in Map / GPX. |
 | **Mirror** | Cast the phone screen. |
 | **USB** | Car USB probe page — log, dummy car, USB settings. |
 

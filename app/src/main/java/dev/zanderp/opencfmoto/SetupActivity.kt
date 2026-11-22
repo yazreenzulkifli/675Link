@@ -62,7 +62,7 @@ class SetupActivity : AppCompatActivity() {
 
         // Category tabs — one group of cards visible at a time.
         val tabGroups = linkedMapOf(
-            R.id.tab_setup to listOf(R.id.card_start, R.id.card_bikes),
+            R.id.tab_setup to listOf(R.id.card_start, R.id.card_navapp, R.id.card_bikes),
             R.id.tab_display to listOf(R.id.card_display, R.id.card_battery),
             R.id.tab_controls to listOf(R.id.card_handlebar, R.id.card_bluetooth),
             R.id.tab_connection to listOf(R.id.card_startup, R.id.card_wifi),
@@ -179,6 +179,8 @@ class SetupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.autoconnect_off).setOnClickListener { setAutoConnect(false) }
         findViewById<MaterialButton>(R.id.recovery_on).setOnClickListener { setAutoRecovery(true) }
         findViewById<MaterialButton>(R.id.recovery_off).setOnClickListener { setAutoRecovery(false) }
+        findViewById<MaterialButton>(R.id.navapp_google).setOnClickListener { setNavApp(AppSettings.NAV_GOOGLE) }
+        findViewById<MaterialButton>(R.id.navapp_waze).setOnClickListener { setNavApp(AppSettings.NAV_WAZE) }
         findViewById<MaterialButton>(R.id.idlereminder_on).setOnClickListener { setIdleReminder(true) }
         findViewById<MaterialButton>(R.id.idlereminder_off).setOnClickListener { setIdleReminder(false) }
         findViewById<MaterialButton>(R.id.idlereminder_test).setOnClickListener {
@@ -423,6 +425,12 @@ class SetupActivity : AppCompatActivity() {
         Toast.makeText(this, "Auto-recovery ${if (on) "on" else "off"}", Toast.LENGTH_SHORT).show()
     }
 
+    private fun setNavApp(app: String) {
+        AppSettings.setNavApp(this, app)
+        refreshOptions()
+        Toast.makeText(this, "Map button opens ${NavLauncher.currentAppName(this)}", Toast.LENGTH_SHORT).show()
+    }
+
     private fun setIdleReminder(on: Boolean) {
         AppSettings.setIdleReminder(this, on)
         refreshOptions()
@@ -581,6 +589,17 @@ class SetupActivity : AppCompatActivity() {
         highlight(AppSettings.autoRecovery(this),
             R.id.recovery_on to true,
             R.id.recovery_off to false)
+        val navWaze = AppSettings.navApp(this) == AppSettings.NAV_WAZE
+        highlight(navWaze,
+            R.id.navapp_google to false,
+            R.id.navapp_waze to true)
+        // Waze picked but not installed → say Google Maps opens instead.
+        val wazeMissing = navWaze && !NavLauncher.isWazeInstalled(this)
+        findViewById<android.widget.TextView>(R.id.navapp_desc).apply {
+            text = getString(if (wazeMissing) R.string.setup_navapp_waze_missing else R.string.setup_navapp_desc)
+            setTextColor(ContextCompat.getColor(this@SetupActivity,
+                if (wazeMissing) android.R.color.holo_red_dark else R.color.home_text_2))
+        }
         highlight(AppSettings.idleReminder(this),
             R.id.idlereminder_on to true,
             R.id.idlereminder_off to false)

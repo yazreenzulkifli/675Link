@@ -611,7 +611,7 @@ class MainActivity : AppCompatActivity() {
         }
         // Tap → Google Maps (what Android Auto shows on the dash); long-press → OpenCfMoto's own map hub.
         findViewById<View>(R.id.btn_gpx).setOnClickListener {
-            log("→ Map: open Google Maps")
+            log("→ Map: open ${NavLauncher.currentAppName(this)}")
             if (!NavLauncher.openMaps(this)) onMapPressed()
         }
         findViewById<View>(R.id.btn_gpx).setOnLongClickListener {
@@ -658,7 +658,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     for (i in tries) { try { startActivity(i); break } catch (_: Exception) { } }
                 } else {
-                    log("→ Destination card: open Google Maps")
+                    log("→ Destination card: open ${NavLauncher.currentAppName(this@MainActivity)}")
                     if (!NavLauncher.openMaps(this@MainActivity)) onMapPressed()
                 }
             }

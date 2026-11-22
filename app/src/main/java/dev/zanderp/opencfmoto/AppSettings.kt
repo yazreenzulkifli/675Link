@@ -54,6 +54,15 @@ object AppSettings {
     fun setIdleReminder(ctx: Context, on: Boolean) =
         prefs(ctx).edit().putBoolean(KEY_IDLE_REMINDER, on).apply()
 
+    /** Navigation app for the Map button, Destination, Navigate-to and handlebar nav: [NAV_GOOGLE] or [NAV_WAZE]. */
+    const val NAV_GOOGLE = "google"
+    const val NAV_WAZE = "waze"
+    private const val KEY_NAV_APP = "nav_app"
+    fun navApp(ctx: Context): String =
+        if (prefs(ctx).getString(KEY_NAV_APP, NAV_GOOGLE) == NAV_WAZE) NAV_WAZE else NAV_GOOGLE
+    fun setNavApp(ctx: Context, app: String) =
+        prefs(ctx).edit().putString(KEY_NAV_APP, if (app == NAV_WAZE) NAV_WAZE else NAV_GOOGLE).apply()
+
     fun logTrips(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_LOG_TRIPS, true)
     fun setLogTrips(ctx: Context, on: Boolean) =
         prefs(ctx).edit().putBoolean(KEY_LOG_TRIPS, on).apply()

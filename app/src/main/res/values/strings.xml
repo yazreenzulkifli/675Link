@@ -779,6 +779,12 @@
     <string name="setup_notif_system_desc">Sound, pop-up and on/off for each 675Link notification. Notifications must be allowed for the ride finished reminder to show.</string>
     <string name="setup_notif_system_off">Notifications are OFF for 675Link, so the ride finished reminder can\'t show. Tap below to turn them on.</string>
     <string name="setup_notif_system_btn">Open notification settings</string>
+    <string name="setup_navapp_header">Navigation app</string>
+    <string name="setup_navapp_title">Default maps app</string>
+    <string name="setup_navapp_desc">Opened by the Map button, the Destination tile, Navigate to… and the handlebar &quot;Navigate to saved place&quot; buttons. Android Auto shows the same app on the dash.</string>
+    <string name="setup_navapp_waze_missing">Waze is not installed on this phone, so Google Maps opens instead. Install Waze from the Play Store to use it.</string>
+    <string name="setup_navapp_google">Google Maps</string>
+    <string name="setup_navapp_waze">Waze</string>
     <string name="setup_idle_reminder_test">Send test reminder</string>
     <string name="setup_idle_reminder_test_sent">Test reminder sent. Check your notifications.</string>
     <string name="setup_idle_reminder_test_blocked">Notifications are off for 675Link. Turn them on below first.</string>

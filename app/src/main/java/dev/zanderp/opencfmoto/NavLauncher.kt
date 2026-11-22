@@ -24,6 +24,7 @@ import android.provider.Settings
 object NavLauncher {
 
     private const val MAPS_PKG = "com.google.android.apps.maps"
+    private const val WAZE_PKG = "com.waze"
 
     /**
      * Whether a nav action fired from the handlebars can actually start Maps. A foreground service
@@ -58,6 +59,14 @@ object NavLauncher {
             Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$enc")).setPackage(MAPS_PKG),
             Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=$enc")),
         )
+        if (wantsWaze(context)) {
+            val waze = listOf(
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://waze.com/ul?q=$enc&navigate=yes")).setPackage(WAZE_PKG),
+                Intent(Intent.ACTION_VIEW, Uri.parse("waze://?q=$enc&navigate=yes")).setPackage(WAZE_PKG),
+            )
+            if (startFirst(context, waze, dest, log, "Waze")) return true
+            log("[NAV] Waze didn't start — using Google Maps instead")
+        }
         return startFirst(context, intents, dest, log)
     }
 
@@ -91,6 +100,14 @@ object NavLauncher {
             Intent(Intent.ACTION_VIEW, Uri.parse("geo:$coord?q=$pin")).setPackage(MAPS_PKG),
             Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=$coord")),
         )
+        if (wantsWaze(context)) {
+            val waze = listOf(
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://waze.com/ul?ll=$coord&navigate=yes")).setPackage(WAZE_PKG),
+                Intent(Intent.ACTION_VIEW, Uri.parse("waze://?ll=$coord&navigate=yes")).setPackage(WAZE_PKG),
+            )
+            if (startFirst(context, waze, label?.takeIf { it.isNotBlank() } ?: coord, log, "Waze")) return true
+            log("[NAV] Waze didn't start — using Google Maps instead")
+        }
         return startFirst(context, intents, label?.takeIf { it.isNotBlank() } ?: coord, log)
     }
 
@@ -99,47 +116,64 @@ object NavLauncher {
         intents: List<Intent>,
         label: String,
         log: (String) -> Unit,
+        appName: String = "Google Maps",
     ): Boolean {
         for (intent in intents) {
             try {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(intent)
-                log("[NAV] → navigating to \"$label\" — phone Maps + dash (AA)")
+                log("[NAV] → navigating to \"$label\" — $appName on phone + dash (AA)")
                 return true
             } catch (_: Exception) { /* try next */ }
         }
-        log("[NAV] navigation failed — is Google Maps installed?")
+        log("[NAV] navigation failed — is $appName installed?")
         return false
     }
 
-    /**
-     * Open the Google Maps app itself (the nav app Android Auto uses), no destination. Android has
-     * no API to read which nav app Android Auto prefers, so this targets Google Maps.
-     * @return false if Maps isn't installed / couldn't start.
-     */
-    fun openMaps(context: Context): Boolean {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0")).setPackage(MAPS_PKG)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return try {
-            context.startActivity(intent)
-            true
-        } catch (_: Exception) {
-            false
-        }
+    /** True when the rider picked Waze in Setup (falls back to Google Maps if Waze is missing). */
+    private fun wantsWaze(context: Context) = AppSettings.navApp(context) == AppSettings.NAV_WAZE
+
+    fun isWazeInstalled(context: Context): Boolean = try {
+        context.packageManager.getPackageInfo(WAZE_PKG, 0)
+        true
+    } catch (_: Exception) {
+        false
     }
 
-    /** Open Google Maps with [query] typed into its search, so Maps shows its own suggestions/results. */
+    /** Name of the app the Map button will open right now (Waze only if picked and installed). */
+    fun currentAppName(context: Context): String =
+        if (wantsWaze(context) && isWazeInstalled(context)) "Waze" else "Google Maps"
+
+    /**
+     * Open the rider's navigation app (Setup → Navigation app: Google Maps or Waze), no destination.
+     * Android Auto shows the same app on the dash. Falls back to Google Maps if Waze is missing.
+     * @return false if no navigation app could start.
+     */
+    fun openMaps(context: Context): Boolean {
+        if (wantsWaze(context)) {
+            val waze = context.packageManager.getLaunchIntentForPackage(WAZE_PKG)
+                ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://waze.com/ul")).setPackage(WAZE_PKG)
+            if (tryStart(context, waze)) return true
+        }
+        return tryStart(context, Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0")).setPackage(MAPS_PKG))
+    }
+
+    /** Open the navigation app with [query] in its search, so it shows its own suggestions/results. */
     fun searchInMaps(context: Context, query: String): Boolean {
         val q = query.trim()
         if (q.isEmpty()) return openMaps(context)
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(q)}"))
-            .setPackage(MAPS_PKG).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return try {
-            context.startActivity(intent)
-            true
-        } catch (_: Exception) {
-            false
-        }
+        val enc = Uri.encode(q)
+        if (wantsWaze(context) &&
+            tryStart(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://waze.com/ul?q=$enc")).setPackage(WAZE_PKG))
+        ) return true
+        return tryStart(context, Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$enc")).setPackage(MAPS_PKG))
+    }
+
+    private fun tryStart(context: Context, intent: Intent): Boolean = try {
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        true
+    } catch (_: Exception) {
+        false
     }
 
     /** Send the user to the system page where "Display over other apps" can be granted. */
