@@ -24,12 +24,12 @@ every ride — all from the Android phone in your pocket.
 
 <br/><br/>
 
-### 🎥 Android Auto on a CFMoto dash
+### 🎥 Setup guide — ready to ride in 4 steps
 
-<img src="docs/media/hud-demo.gif" width="560" alt="Android Auto on the CFMoto MotoPlay dashboard"/>
+<a href="docs/media/675link-setup-guide.mp4"><img src="docs/media/675link-setup-preview.gif" width="300" alt="675Link setup guide preview: permission, dev mode, head unit, pair and connect, and turning the head unit off after a ride"/></a>
 
-**▶ [Watch the full demo](docs/media/hud-demo.mp4)** — Google Maps navigation + media, driven from
-the dash touchscreen.
+**▶ [Watch the full setup guide](docs/media/675link-setup-guide.mp4)** (1:21) — Permission, Dev mode,
+Head unit, scan the dash QR and connect, then turn the head unit off after your ride.
 
 </div>
 
