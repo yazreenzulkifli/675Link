@@ -233,7 +233,7 @@
     <string name="main_search_a_place_or_address">Hely vagy cím keresése…</string>
     <string name="main_go">Indítás</string>
     <string name="main_rider_tips">Motoros tippek</string>
-    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Csatlakozás — Android Auto indítása a műszerfalon (kapcsolat közben Leállítás lesz).\n• Térkép — OpenCfMoto térkép / GPX (nem Google Maps). Tükrözés — telefon képernyő tükrözése.\n• Kapcsolat közben a Térkép / Tükrözés váltja, mit mutat a műszerfal.\n• Műszerfal nézet és Vezérlés — telefon HUD és D-pad / kormány.</string>
+    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Csatlakozás — Android Auto indítása a műszerfalon (kapcsolat közben Leállítás lesz).\n• Térkép — 675Link térkép / GPX (nem Google Maps). Tükrözés — telefon képernyő tükrözése.\n• Kapcsolat közben a Térkép / Tükrözés váltja, mit mutat a műszerfal.\n• Műszerfal nézet és Vezérlés — telefon HUD és D-pad / kormány.</string>
     <string name="main_about_credits">Névjegy és köszönet</string>
     <string name="main_check_for_update">Frissítés keresése</string>
     <string name="main_report_a_problem">Probléma jelentése</string>
@@ -241,7 +241,7 @@
     <string name="main_report_hint_problem">Mi volt a probléma?</string>
     <string name="main_report_hint_bike_model">Modell (pl. 800NK Advanced)</string>
     <string name="main_report_hint_year">Évjárat (opcionális)</string>
-    <string name="main_mirror_leave_shared_app">Hagyd a megosztott alkalmazást a képernyőn (az OpenCfMoto az értesítésben marad)</string>
+    <string name="main_mirror_leave_shared_app">Hagyd a megosztott alkalmazást a képernyőn (az 675Link az értesítésben marad)</string>
     <string name="main_share_problem_report">Probléma jelentés megosztása</string>
     <string name="main_diagnostics">Diagnosztika</string>
     <string name="main_share">Megosztás</string>
@@ -265,7 +265,7 @@
     <string name="setup_a_one_time_setup_so_android_auto_can_project_to_">Egyszeri előkészítés, hogy az Android Auto vetíthessen a CFMoto műszerfaladra, plusz kijelző- és akkumulátor beállítások.</string>
     <string name="setup_get_started">Kezdés</string>
     <string name="setup_1_android_auto">1. Android Auto</string>
-    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Az Android Auto futtatja a Maps/Waze-t. Az OpenCfMoto továbbítja a képernyőjét a motorra.</string>
+    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Az Android Auto futtatja a Maps/Waze-t. Az 675Link továbbítja a képernyőjét a motorra.</string>
     <string name="setup_open_android_auto">Android Auto megnyitása</string>
     <string name="setup_install_android_auto">Android Auto telepítése</string>
     <string name="setup_2_permissions">2. Engedélyek</string>

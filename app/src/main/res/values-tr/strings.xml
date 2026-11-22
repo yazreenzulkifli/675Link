@@ -178,7 +178,7 @@
     <string name="main_search_a_place_or_address">Bir yer veya adres ara…</string>
     <string name="main_go">Git</string>
     <string name="main_rider_tips">Sürücü ipuçları</string>
-    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Bağlan — Ekranda Android Auto\'yu başlat (bağlıyken Durdur olur).\n• Harita — OpenCfMoto haritası / GPX (Google Haritalar değil). Yansıt — telefon ekranını yansıt.\n• Bağlıyken, Harita / Yansıt ekranda neyin görüneceğini değiştirir.\n• Ekran görünümü &amp; Kontroller — telefonda HUD ve D-pad / gidon.</string>
+    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Bağlan — Ekranda Android Auto\'yu başlat (bağlıyken Durdur olur).\n• Harita — 675Link haritası / GPX (Google Haritalar değil). Yansıt — telefon ekranını yansıt.\n• Bağlıyken, Harita / Yansıt ekranda neyin görüneceğini değiştirir.\n• Ekran görünümü &amp; Kontroller — telefonda HUD ve D-pad / gidon.</string>
     <string name="main_about_credits">Hakkında &amp; emeği geçenler</string>
     <string name="main_check_for_update">Güncelleme kontrol et</string>
     <string name="main_report_a_problem">Sorun bildir</string>
@@ -201,7 +201,7 @@
     <string name="setup_a_one_time_setup_so_android_auto_can_project_to_">Android Auto\'nun CFMoto ekranına yansıtılabilmesi için tek seferlik kurulum ve ayrıca ekran/pil seçenekleri.</string>
     <string name="setup_get_started">Başla</string>
     <string name="setup_1_android_auto">1. Android Auto</string>
-    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto Haritalar/Waze\'i çalıştırır. OpenCfMoto ise ekranını motora aktarır.</string>
+    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto Haritalar/Waze\'i çalıştırır. 675Link ise ekranını motora aktarır.</string>
     <string name="setup_install_android_auto">Android Auto\'yu Yükle</string>
     <string name="setup_2_permissions">2. İzinler</string>
     <string name="setup_camera_scan_the_dash_qr_location_join_the_bike_w">Kamera (ekran QR kodunu tara), Konum (motor Wi-Fi\'sine katıl), Bildirimler (sürüş sırasında çalışmaya devam et).</string>

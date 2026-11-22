@@ -176,7 +176,7 @@
     <string name="main_search_a_place_or_address">Wyszukaj miejsce lub adres…</string>
     <string name="main_go">Idź</string>
     <string name="main_rider_tips">Wskazówki dla użytkowników</string>
-    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Połącz — uruchom Android Auto na ekranie motocykla (po połączeniu zmienia się w Zatrzymaj).\n• Mapa — mapa OpenCfMoto / GPX (nie Google Maps). Projekcja — przesyłaj ekran telefonu.\n• Po podłączeniu, Mapa/Projekcja przełącza to, co pokazuje ekran.\n• Widok ekranu motocykla i sterowanie — HUD telefonu i pad kierunkowy/kierownica.</string>
+    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Połącz — uruchom Android Auto na ekranie motocykla (po połączeniu zmienia się w Zatrzymaj).\n• Mapa — mapa 675Link / GPX (nie Google Maps). Projekcja — przesyłaj ekran telefonu.\n• Po podłączeniu, Mapa/Projekcja przełącza to, co pokazuje ekran.\n• Widok ekranu motocykla i sterowanie — HUD telefonu i pad kierunkowy/kierownica.</string>
     <string name="main_about_credits">Informacje i autorzy</string>
     <string name="main_check_for_update">Sprawdź dostępność aktualizacji</string>
     <string name="main_report_a_problem">Zgłoś problem</string>
@@ -199,7 +199,7 @@
     <string name="setup_a_one_time_setup_so_android_auto_can_project_to_">Jednorazowa konfiguracja, dzięki której Android Auto może wyświetlać obraz na ekranie CFMoto, a także opcje wyświetlacza i baterii.</string>
     <string name="setup_get_started">Rozpocznij</string>
     <string name="setup_1_android_auto">1. Android Auto</string>
-    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto obsługuje Mapy/Waze. OpenCfMoto strumieniuje ekran AA na ekran motocykla .</string>
+    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto obsługuje Mapy/Waze. 675Link strumieniuje ekran AA na ekran motocykla .</string>
     <string name="setup_install_android_auto">Zainstaluj Android Auto</string>
     <string name="setup_2_permissions">2. Uprawnienia</string>
     <string name="setup_camera_scan_the_dash_qr_location_join_the_bike_w">Aparat (do skanowania kodu QR z ekranu motocykla), Lokalizacja (do łączenia się z Wi-Fi motocykla), Powiadomienia (pozwala na działanie w tle podczas jazdy).</string>

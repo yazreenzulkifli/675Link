@@ -49,7 +49,7 @@
     <string name="setup_aa_dpi_desc">Auto uses the bike profile. Higher DPI makes Maps / AA chrome larger (useful if the TFT font is too small).</string>
     <string name="setup_aa_dpi_auto">Auto</string>
     <string name="setup_bt_trigger">Connect when a Bluetooth device joins</string>
-    <string name="setup_bt_trigger_desc">Optional. Pair the trigger device first (helmet remote, watch). Next time it connects, OpenCfMoto starts Connect using the saved bike.</string>
+    <string name="setup_bt_trigger_desc">Optional. Pair the trigger device first (helmet remote, watch). Next time it connects, 675Link starts Connect using the saved bike.</string>
     <string name="setup_bt_trigger_pick">Choose a bonded device</string>
     <string name="setup_bt_trigger_none">Off</string>
     <string name="setup_bt_trigger_set">Trigger: %1$s</string>
@@ -278,7 +278,7 @@
     <string name="main_search_a_place_or_address">Search a place or address…</string>
     <string name="main_go">Go</string>
     <string name="main_rider_tips">Rider tips</string>
-    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Connect — start Android Auto on the dash (becomes Stop while linked).\n• Map — OpenCfMoto map / GPX (not Google Maps). Mirror — cast phone screen.\n• While connected, Map / Mirror switch what the dash shows.\n• Dash view &amp; Controls — phone HUD and D-pad / handlebar.</string>
+    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Connect — start Android Auto on the dash (becomes Stop while linked).\n• Map — 675Link map / GPX (not Google Maps). Mirror — cast phone screen.\n• While connected, Map / Mirror switch what the dash shows.\n• Dash view &amp; Controls — phone HUD and D-pad / handlebar.</string>
     <string name="main_about_credits">About &amp; credits</string>
     <string name="main_check_for_update">Check for update</string>
     <string name="main_revamp_by_yz">Revamp by YZ</string>
@@ -309,7 +309,7 @@
     <string name="main_report_hint_problem">What went wrong?</string>
     <string name="main_report_hint_bike_model">Bike model (e.g. 800NK Advanced)</string>
     <string name="main_report_hint_year">Year (optional)</string>
-    <string name="main_mirror_leave_shared_app">Leave the shared app on screen (OpenCfMoto stays in the notification)</string>
+    <string name="main_mirror_leave_shared_app">Leave the shared app on screen (675Link stays in the notification)</string>
     <string name="main_share_problem_report">Share problem report</string>
     <string name="main_diagnostics">Diagnostics</string>
     <string name="main_share">Share</string>
@@ -333,7 +333,7 @@
     <string name="setup_a_one_time_setup_so_android_auto_can_project_to_">A one-time setup so Android Auto can project to your CFMoto dash, plus display and battery options.</string>
     <string name="setup_get_started">Get started</string>
     <string name="setup_1_android_auto">1. Android Auto</string>
-    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto runs Maps/Waze. OpenCfMoto relays its screen to the bike.</string>
+    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto runs Maps/Waze. 675Link relays its screen to the bike.</string>
     <string name="setup_open_android_auto">Open Android Auto</string>
     <string name="setup_install_android_auto">Install Android Auto</string>
     <string name="setup_2_permissions">2. Permissions</string>
@@ -695,7 +695,7 @@
     <string name="home_dev_on">Enabled</string>
     <string name="home_dev_unknown">Not verified</string>
     <string name="home_perm_title">Allow permissions</string>
-    <string name="home_perm_msg">OpenCfMoto needs a few permissions (like location and nearby devices) to find your bike and project navigation.</string>
+    <string name="home_perm_msg">675Link needs a few permissions (like location and nearby devices) to find your bike and project navigation.</string>
     <string name="home_perm_step">Tap Allow on each prompt; if one is blocked, enable it in app settings</string>
     <string name="home_perm_grant">Grant permissions →</string>
     <string name="home_hus_stop_title">Stop head unit server</string>
@@ -756,7 +756,7 @@
     <string name="home_guide_1_title">Connect</string>
     <string name="home_guide_1_body">Launches Android Auto on the CFMoto dash. The button turns into Stop while linked.</string>
     <string name="home_guide_2_title">Map &amp; GPX</string>
-    <string name="home_guide_2_body">OpenCfMoto\'s own high-contrast map with your GPX tracks — independent from phone maps.</string>
+    <string name="home_guide_2_body">675Link\'s own high-contrast map with your GPX tracks — independent from phone maps.</string>
     <string name="home_guide_3_title">Dash switcher</string>
     <string name="home_guide_3_body">While connected, tapping Map or Mirror changes what your TFT shows.</string>
     <string name="home_guide_4_title">Controls</string>

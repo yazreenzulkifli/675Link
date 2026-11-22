@@ -173,7 +173,7 @@
     <string name="main_search_a_place_or_address">Caută un loc sau o adresă…</string>
     <string name="main_go">Go</string>
     <string name="main_rider_tips">Sfaturi pentru rider</string>
-    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Conectează — pornește Android Auto pe bord (devine Oprește cât ești conectat).\n• Hartă — harta OpenCfMoto / GPX (nu Google Maps). Oglindă — proiectează ecranul telefonului.\n• Cât ești conectat, Hartă / Oglindă comută ce se vede pe bord.\n• Vedere bord &amp; Comenzi — HUD pe telefon și D-pad / ghidon.</string>
+    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Conectează — pornește Android Auto pe bord (devine Oprește cât ești conectat).\n• Hartă — harta 675Link / GPX (nu Google Maps). Oglindă — proiectează ecranul telefonului.\n• Cât ești conectat, Hartă / Oglindă comută ce se vede pe bord.\n• Vedere bord &amp; Comenzi — HUD pe telefon și D-pad / ghidon.</string>
     <string name="main_about_credits">Despre &amp; credite</string>
     <string name="main_check_for_update">Verifică actualizare</string>
     <string name="main_report_a_problem">Raportează o problemă</string>
@@ -196,7 +196,7 @@
     <string name="setup_a_one_time_setup_so_android_auto_can_project_to_">Configurare o singură dată ca Android Auto să poată proiecta pe bordul CFMoto, plus opțiuni de afișaj și baterie.</string>
     <string name="setup_get_started">Începe</string>
     <string name="setup_1_android_auto">1. Android Auto</string>
-    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto rulează Maps/Waze. OpenCfMoto îi transmite ecranul pe moto.</string>
+    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto rulează Maps/Waze. 675Link îi transmite ecranul pe moto.</string>
     <string name="setup_install_android_auto">Instalează Android Auto</string>
     <string name="setup_2_permissions">2. Permisiuni</string>
     <string name="setup_camera_scan_the_dash_qr_location_join_the_bike_w">Cameră (scanează QR-ul de pe bord), Locație (conectare la Wi‑Fi-ul moto), Notificări (rămâne activ cât mergi).</string>

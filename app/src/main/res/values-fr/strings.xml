@@ -173,7 +173,7 @@
     <string name="main_search_a_place_or_address">Rechercher un lieu ou une adresse…</string>
     <string name="main_go">Go</string>
     <string name="main_rider_tips">Conseils aux motards</string>
-    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Connecter : démarrez Android Auto sur le tableau de bord (devient Stop une fois lié).\n• Carte — Carte OpenCfMoto/GPX (pas Google Maps). Miroir : projeter l\'écran du téléphone.\n• Une fois connecté, Map / Mirror change ce que le tableau de bord affiche.\n• Vue et commandes du tableau de bord : HUD du téléphone et D-pad/guidon.</string>
+    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Connecter : démarrez Android Auto sur le tableau de bord (devient Stop une fois lié).\n• Carte — Carte 675Link/GPX (pas Google Maps). Miroir : projeter l\'écran du téléphone.\n• Une fois connecté, Map / Mirror change ce que le tableau de bord affiche.\n• Vue et commandes du tableau de bord : HUD du téléphone et D-pad/guidon.</string>
     <string name="main_about_credits">À propos et crédits</string>
     <string name="main_check_for_update">Vérifier la mise à jour</string>
     <string name="main_report_a_problem">Signaler un problème</string>
@@ -196,7 +196,7 @@
     <string name="setup_a_one_time_setup_so_android_auto_can_project_to_">Une configuration unique pour qu\'Android Auto puisse projeter sur votre tableau de bord CFMoto, ainsi que des options d\'affichage et de batterie.</string>
     <string name="setup_get_started">Commencer</string>
     <string name="setup_1_android_auto">1. Android Auto</string>
-    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto exécute Maps/Waze. OpenCfMoto relaie son écran à la moto.</string>
+    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto exécute Maps/Waze. 675Link relaie son écran à la moto.</string>
     <string name="setup_install_android_auto">Installer Android Auto</string>
     <string name="setup_2_permissions">2. Autorisations</string>
     <string name="setup_camera_scan_the_dash_qr_location_join_the_bike_w">Caméra (scannez le QR du tableau de bord), localisation (rejoignez le Wi-Fi de la moto), notifications (continuez à courir pendant que vous roulez).</string>

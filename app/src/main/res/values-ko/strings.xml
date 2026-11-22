@@ -178,7 +178,7 @@
     <string name="main_search_a_place_or_address">Search a place or address…</string>
     <string name="main_go">Go</string>
     <string name="main_rider_tips">Rider tips</string>
-    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Connect — start Android Auto on the dash (becomes Stop while linked).\n• Map — OpenCfMoto map / GPX (not Google Maps). Mirror — cast phone screen.\n• While connected, Map / Mirror switch what the dash shows.\n• Dash view &amp; Controls — phone HUD and D-pad / handlebar.</string>
+    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Connect — start Android Auto on the dash (becomes Stop while linked).\n• Map — 675Link map / GPX (not Google Maps). Mirror — cast phone screen.\n• While connected, Map / Mirror switch what the dash shows.\n• Dash view &amp; Controls — phone HUD and D-pad / handlebar.</string>
     <string name="main_about_credits">About &amp; credits</string>
     <string name="main_check_for_update">Check for update</string>
     <string name="main_report_a_problem">Report a problem</string>
@@ -201,7 +201,7 @@
     <string name="setup_a_one_time_setup_so_android_auto_can_project_to_">A one-time setup so Android Auto can project to your CFMoto dash, plus display and battery options.</string>
     <string name="setup_get_started">Get started</string>
     <string name="setup_1_android_auto">1. Android Auto</string>
-    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto runs Maps/Waze. OpenCfMoto relays its screen to the bike.</string>
+    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto runs Maps/Waze. 675Link relays its screen to the bike.</string>
     <string name="setup_install_android_auto">Install Android Auto</string>
     <string name="setup_2_permissions">2. Permissions</string>
     <string name="setup_camera_scan_the_dash_qr_location_join_the_bike_w">Camera (scan the dash QR), Location (join the bike Wi-Fi), Notifications (keep running while you ride).</string>

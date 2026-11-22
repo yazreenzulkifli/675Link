@@ -173,7 +173,7 @@
     <string name="main_search_a_place_or_address">Ort oder Adresse suchen…</string>
     <string name="main_go">Los</string>
     <string name="main_rider_tips">Fahrertipps</string>
-    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Verbinden – Android Auto auf dem Armaturenbrett starten (wird bei der Verbindung zu „Stopp“).\n• Karte – OpenCfMoto-Karte/GPX (nicht Google Maps). Spiegel – Telefonbildschirm spiegeln.\n• Während die Verbindung besteht, können Sie mit Karte/Spiegel umschalten, was auf dem Armaturenbrett angezeigt wird.\n• Armaturenbrettansicht und Bedienelemente – Telefon-HUD und D-Pad/Lenker.</string>
+    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Verbinden – Android Auto auf dem Armaturenbrett starten (wird bei der Verbindung zu „Stopp“).\n• Karte – 675Link-Karte/GPX (nicht Google Maps). Spiegel – Telefonbildschirm spiegeln.\n• Während die Verbindung besteht, können Sie mit Karte/Spiegel umschalten, was auf dem Armaturenbrett angezeigt wird.\n• Armaturenbrettansicht und Bedienelemente – Telefon-HUD und D-Pad/Lenker.</string>
     <string name="main_about_credits">Über &amp; Credits</string>
     <string name="main_check_for_update">Nach Update suchen</string>
     <string name="main_report_a_problem">Problem melden</string>
@@ -196,7 +196,7 @@
     <string name="setup_a_one_time_setup_so_android_auto_can_project_to_">Eine einmalige Einrichtung, damit Android Auto auf Ihr CFMoto-Armaturenbrett projizieren kann, plus Anzeige- und Akkuoptionen.</string>
     <string name="setup_get_started">Fangen Sie an</string>
     <string name="setup_1_android_auto">1. Android Auto</string>
-    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto führt Maps/Waze aus. OpenCfMoto leitet seinen Bildschirm an das Motorrad weiter.</string>
+    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto führt Maps/Waze aus. 675Link leitet seinen Bildschirm an das Motorrad weiter.</string>
     <string name="setup_install_android_auto">Installieren Sie Android Auto</string>
     <string name="setup_2_permissions">2. Berechtigungen</string>
     <string name="setup_camera_scan_the_dash_qr_location_join_the_bike_w">Kamera (den Dash-QR scannen), Standort (mit dem Motorrad-WLAN verbinden), Benachrichtigungen (während der Fahrt weiterlaufen).</string>

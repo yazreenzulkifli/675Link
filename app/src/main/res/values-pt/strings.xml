@@ -173,7 +173,7 @@
     <string name="main_search_a_place_or_address">Pesquise um lugar ou endereço…</string>
     <string name="main_go">Ir</string>
     <string name="main_rider_tips">Dicas para ciclistas</string>
-    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Conectar – inicia o Android Auto no painel (torna-se Parar enquanto estiver vinculado).\n• Mapa — mapa OpenCfMoto / GPX (não Google Maps). Espelho – transmitir a tela do telefone.\n• Enquanto estiver conectado, Mapa/Espelho alterna o que o painel mostra.\n• Visualização e controles do painel — HUD do telefone e D-pad/guiador.</string>
+    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Conectar – inicia o Android Auto no painel (torna-se Parar enquanto estiver vinculado).\n• Mapa — mapa 675Link / GPX (não Google Maps). Espelho – transmitir a tela do telefone.\n• Enquanto estiver conectado, Mapa/Espelho alterna o que o painel mostra.\n• Visualização e controles do painel — HUD do telefone e D-pad/guiador.</string>
     <string name="main_about_credits">Sobre e créditos</string>
     <string name="main_check_for_update">Verifique se há atualização</string>
     <string name="main_report_a_problem">Informar um problema</string>
@@ -196,7 +196,7 @@
     <string name="setup_a_one_time_setup_so_android_auto_can_project_to_">Uma configuração única para que o Android Auto possa projetar no seu painel CFMoto, além de opções de tela e bateria.</string>
     <string name="setup_get_started">Comece</string>
     <string name="setup_1_android_auto">1. Android Auto</string>
-    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">O Android Auto executa o Maps/Waze. OpenCfMoto transmite sua tela para a moto.</string>
+    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">O Android Auto executa o Maps/Waze. 675Link transmite sua tela para a moto.</string>
     <string name="setup_install_android_auto">Instale o Android Auto</string>
     <string name="setup_2_permissions">2. Permissões</string>
     <string name="setup_camera_scan_the_dash_qr_location_join_the_bike_w">Câmera (digitalize o QR do painel), Localização (entre no Wi-Fi da moto), Notificações (continue correndo enquanto anda).</string>

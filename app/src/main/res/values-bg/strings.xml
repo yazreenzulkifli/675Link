@@ -240,7 +240,7 @@
     <string name="main_search_a_place_or_address">Търсене на място или адрес…</string>
     <string name="main_go">Тръгни</string>
     <string name="main_rider_tips">Съвети за водача</string>
-    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Свързване (Connect) — стартира Android Auto на таблото (става Спри, докато сте свързани).\n• Карта (Map) — Карта на OpenCfMoto / GPX (не Google Maps). Огледален (Mirror) — предава екрана на телефона.\n• Докато сте свързани, Карта / Огледален превключват какво показва таблото.\n• Изглед табло и Контроли — екранни бутони на телефона и управление от кормилото.</string>
+    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Свързване (Connect) — стартира Android Auto на таблото (става Спри, докато сте свързани).\n• Карта (Map) — Карта на 675Link / GPX (не Google Maps). Огледален (Mirror) — предава екрана на телефона.\n• Докато сте свързани, Карта / Огледален превключват какво показва таблото.\n• Изглед табло и Контроли — екранни бутони на телефона и управление от кормилото.</string>
     <string name="main_about_credits">Относно и признания</string>
     <string name="main_check_for_update">Провери за актуализация</string>
     <string name="main_report_a_problem">Докладвай проблем</string>
@@ -248,7 +248,7 @@
     <string name="main_report_hint_problem">Какво се обърка?</string>
     <string name="main_report_hint_bike_model">Модел на мотора (напр. 800NK Advanced)</string>
     <string name="main_report_hint_year">Година (по избор)</string>
-    <string name="main_mirror_leave_shared_app">Оставете споделеното приложение на екрана (OpenCfMoto остава в известията)</string>
+    <string name="main_mirror_leave_shared_app">Оставете споделеното приложение на екрана (675Link остава в известията)</string>
     <string name="main_share_problem_report">Сподели доклад за проблем</string>
     <string name="main_diagnostics">Диагностика</string>
     <string name="main_share">Сподели</string>
@@ -272,7 +272,7 @@
     <string name="setup_a_one_time_setup_so_android_auto_can_project_to_">Еднократна настройка, за да може Android Auto да прожектира към вашето CFMoto табло, плюс опции за дисплея и батерията.</string>
     <string name="setup_get_started">Започнете</string>
     <string name="setup_1_android_auto">1. Android Auto</string>
-    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto изпълнява Maps/Waze. OpenCfMoto предава екрана му към мотора.</string>
+    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto изпълнява Maps/Waze. 675Link предава екрана му към мотора.</string>
     <string name="setup_open_android_auto">Отвори Android Auto</string>
     <string name="setup_install_android_auto">Инсталирай Android Auto</string>
     <string name="setup_2_permissions">2. Разрешения</string>

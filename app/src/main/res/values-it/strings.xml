@@ -208,7 +208,7 @@
     <string name="main_search_a_place_or_address">Cerca un luogo o un indirizzo...</string>
     <string name="main_go">Parti</string>
     <string name="main_rider_tips">Consigli per il rider</string>
-    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Connetti - avvia Android Auto sul cruscotto (diventa Stop se collegato).\n• Mappa: mappa OpenCfMoto/GPX (non Google Maps). Mirroring: trasmette lo schermo del telefono.\n• Durante la connessione, Mappa/Mirror cambia ciò che mostra il cruscotto.\n• Visualizzazione e controlli del cruscotto: HUD del telefono e D-pad/manubrio.</string>
+    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Connetti - avvia Android Auto sul cruscotto (diventa Stop se collegato).\n• Mappa: mappa 675Link/GPX (non Google Maps). Mirroring: trasmette lo schermo del telefono.\n• Durante la connessione, Mappa/Mirror cambia ciò che mostra il cruscotto.\n• Visualizzazione e controlli del cruscotto: HUD del telefono e D-pad/manubrio.</string>
     <string name="main_about_credits">Informazioni e crediti</string>
     <string name="main_check_for_update">Controlla l\'aggiornamento</string>
     <string name="main_report_a_problem">Segnala un problema</string>
@@ -231,7 +231,7 @@
     <string name="setup_a_one_time_setup_so_android_auto_can_project_to_">configura in modo che Android Auto possa eseguire il mirroring sul tuo cruscotto CFMoto, oltre a opzioni di display e batteria.</string>
     <string name="setup_get_started">Inizia</string>
     <string name="setup_1_android_auto">1.Android automatico</string>
-    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto esegue Maps/Waze. OpenCfMoto trasmette il suo schermo alla moto.</string>
+    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto esegue Maps/Waze. 675Link trasmette il suo schermo alla moto.</string>
     <string name="setup_install_android_auto">Installa Android Auto</string>
     <string name="setup_2_permissions">2. Autorizzazioni</string>
     <string name="setup_camera_scan_the_dash_qr_location_join_the_bike_w">Fotocamera (scansiona il QR del cruscotto), Posizione (accedi al Wi-Fi della moto), Notifiche (continua a correre mentre guidi).</string>
@@ -474,7 +474,7 @@
     <string name="main_report_hint_problem">Cosa è andato storto?</string>
     <string name="main_report_hint_bike_model">Modello moto (e.g. 800NK Advanced)</string>
     <string name="main_report_hint_year">Anno (opzionale)</string>
-    <string name="main_mirror_leave_shared_app">Lascia l’app condivisa sullo schermo (OpenCfMoto resta nella notifica)</string>
+    <string name="main_mirror_leave_shared_app">Lascia l’app condivisa sullo schermo (675Link resta nella notifica)</string>
     <string name="main_share_problem_report">Condividi la segnalazione del problema</string>
     <string name="margins_summary_none">Nessuno — Android Auto usa l’intero cruscotto.</string>
     <string name="margins_summary_profile_default">Sopra %1$d · Sotto %2$d · Sinistra %3$d · Destra %4$d px (Profilo Predefinito)</string>

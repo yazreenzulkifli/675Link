@@ -240,7 +240,7 @@
     <string name="main_search_a_place_or_address">Buscar un lugar o dirección…</string>
     <string name="main_go">Ir</string>
     <string name="main_rider_tips">Consejos para moteros</string>
-    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Conectar: inicia Android Auto en el tablero (se convierte en Detener mientras está vinculado).\n• Mapa: mapa OpenCfMoto / GPX (no Google Maps). Espejo: transmitir la pantalla del teléfono.\n• Mientras está conectado, Mapa/Espejo cambia lo que muestra el tablero.\n• Vista del tablero y controles: HUD del teléfono y D-pad/manillar.</string>
+    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Conectar: inicia Android Auto en el tablero (se convierte en Detener mientras está vinculado).\n• Mapa: mapa 675Link / GPX (no Google Maps). Espejo: transmitir la pantalla del teléfono.\n• Mientras está conectado, Mapa/Espejo cambia lo que muestra el tablero.\n• Vista del tablero y controles: HUD del teléfono y D-pad/manillar.</string>
     <string name="main_about_credits">Acerca de y créditos</string>
     <string name="main_check_for_update">Buscar actualizaciones</string>
     <string name="main_report_a_problem">Informar de un problema</string>
@@ -248,7 +248,7 @@
     <string name="main_report_hint_problem">¿Qué ha fallado?</string>
     <string name="main_report_hint_bike_model">Modelo de moto (p. ej. 800NK Advanced)</string>
     <string name="main_report_hint_year">Año (opcional)</string>
-    <string name="main_mirror_leave_shared_app">Dejar en pantalla la aplicación compartida (OpenCfMoto se queda en la notificación)</string>
+    <string name="main_mirror_leave_shared_app">Dejar en pantalla la aplicación compartida (675Link se queda en la notificación)</string>
     <string name="main_share_problem_report">Compartir el informe del problema</string>
     <string name="main_diagnostics">Diagnóstico</string>
     <string name="main_share">Compartir</string>
@@ -272,7 +272,7 @@
     <string name="setup_a_one_time_setup_so_android_auto_can_project_to_">Una configuración única para que Android Auto pueda proyectar en tu tablero CFMoto, más las opciones de pantalla y batería.</string>
     <string name="setup_get_started">Empezar</string>
     <string name="setup_1_android_auto">1. Android Auto</string>
-    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto ejecuta Maps/Waze. OpenCfMoto retransmite tu pantalla a la moto.</string>
+    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto ejecuta Maps/Waze. 675Link retransmite tu pantalla a la moto.</string>
     <string name="setup_open_android_auto">Abrir Android Auto</string>
     <string name="setup_install_android_auto">Instalar Android Auto</string>
     <string name="setup_2_permissions">2. Permisos</string>

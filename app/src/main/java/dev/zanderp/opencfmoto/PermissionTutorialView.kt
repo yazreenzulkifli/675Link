@@ -75,7 +75,7 @@ class PermissionTutorialView(context: Context) : View(context) {
             rect.set(cl, ct, cr, cb)
             c.drawRoundRect(rect, 14f * d, 14f * d, fill)
             text.isFakeBoldText = true; text.textSize = 9.5f * sp; text.color = alpha(0xFFFFFFFF.toInt(), cardA)
-            c.drawText("Allow OpenCfMoto to access", cl + 12 * d, ct + 20f * d, text)
+            c.drawText("Allow 675Link to access", cl + 12 * d, ct + 20f * d, text)
             c.drawText("this device's location?", cl + 12 * d, ct + 34f * d, text)
             // Highlighted "While using the app" button
             val press = seg(0.42f, 0.50f)

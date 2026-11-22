@@ -45,7 +45,7 @@
     <string name="setup_aa_dpi_desc">Android Auto utilitza el perfil de la moto. Un DPI més alt fa que els elements de Maps i de la interfície d\'Android Auto siguin més grans (útil si la lletra de la pantalla TFT és massa petita).</string>
     <string name="setup_aa_dpi_auto">Automàtic</string>
     <string name="setup_bt_trigger">Connecta quan es connecti un dispositiu Bluetooth</string>
-    <string name="setup_bt_trigger_desc">Opcional. Emparella primer el dispositiu activador (comandament del casc, rellotge, etc.). La propera vegada que es connecti, OpenCfMoto iniciarà Connect utilitzant la moto desada.</string>
+    <string name="setup_bt_trigger_desc">Opcional. Emparella primer el dispositiu activador (comandament del casc, rellotge, etc.). La propera vegada que es connecti, 675Link iniciarà Connect utilitzant la moto desada.</string>
     <string name="setup_bt_trigger_pick">Tria un dispositiu emparellat</string>
     <string name="setup_bt_trigger_none">Desactivat</string>
     <string name="setup_bt_trigger_set">Activador: %1$s</string>
@@ -256,7 +256,7 @@
     <string name="main_search_a_place_or_address">Cerca un lloc o adreça…</string>
     <string name="main_go">Vés</string>
     <string name="main_rider_tips">Consells per a motoristes</string>
-    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Connecta: inicia Android Auto al quadre (es converteix en Atura mentre està vinculat).\n• Mapa: mapa OpenCfMoto / GPX (no Google Maps). Mirall: transmetre la pantalla del telèfon.\n• Mentre està connectat, Mapa/Mirall canvia el que mostra el quadre.\n• Vista del quadre i controls: HUD del telèfon i D-pad/manillar.</string>
+    <string name="main_connect_start_android_auto_on_the_dash_becomes_s">• Connecta: inicia Android Auto al quadre (es converteix en Atura mentre està vinculat).\n• Mapa: mapa 675Link / GPX (no Google Maps). Mirall: transmetre la pantalla del telèfon.\n• Mentre està connectat, Mapa/Mirall canvia el que mostra el quadre.\n• Vista del quadre i controls: HUD del telèfon i D-pad/manillar.</string>
     <string name="main_about_credits">Quant a i crèdits</string>
     <string name="main_check_for_update">Cerca actualitzacions</string>
     <string name="main_report_a_problem">Informar d\'un problema</string>
@@ -264,7 +264,7 @@
     <string name="main_report_hint_problem">Què ha anat malament?</string>
     <string name="main_report_hint_bike_model">Model de moto (per exemple, 800NK Advanced)</string>
     <string name="main_report_hint_year">Any (opcional)</string>
-    <string name="main_mirror_leave_shared_app">Deixa l\'aplicació compartida a la pantalla (OpenCfMoto es queda a la notificació)</string>
+    <string name="main_mirror_leave_shared_app">Deixa l\'aplicació compartida a la pantalla (675Link es queda a la notificació)</string>
     <string name="main_share_problem_report">Comparteix l\'informe de problemes</string>
     <string name="main_diagnostics">Diagnòstic</string>
     <string name="main_share">Comparteix</string>
@@ -288,7 +288,7 @@
     <string name="setup_a_one_time_setup_so_android_auto_can_project_to_">Una configuració única perquè Android Auto pugui projectar al vostre quadre CFMoto, a més d\'opcions de pantalla i bateria.</string>
     <string name="setup_get_started">Comença</string>
     <string name="setup_1_android_auto">1. Android Auto</string>
-    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto executa Maps/Waze. OpenCfMoto transmet la seva pantalla a la moto.</string>
+    <string name="setup_android_auto_runs_maps_waze_opencfmoto_relays_it">Android Auto executa Maps/Waze. 675Link transmet la seva pantalla a la moto.</string>
     <string name="setup_open_android_auto">Obre Android Auto</string>
     <string name="setup_install_android_auto">Instal·la Android Auto</string>
     <string name="setup_2_permissions">2. Permisos</string>
