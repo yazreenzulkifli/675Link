@@ -63,6 +63,62 @@ CFMoto · Voge · Morini · Morbidelli · QJ Motor · Rieju · UM · Wmoto · GO
 
 ---
 
+## 🆕 675Link — what this fork adds
+
+**675Link** is a fork of [OpenCfMoto](https://github.com/zanderp/open-cfmoto) tuned for the
+**CFMoto 675** TFT dash. Everything below is on top of the OpenCfMoto features further down.
+
+### 🚗 USB car mode (experimental) — Perodua Smart Link / Carbit "Oversea" head units
+
+Some cars (tested on a **Perodua Myvi**) run the same Carbit stack over a **USB cable** instead of
+Wi‑Fi. 675Link can now project Android Auto to these cars.
+
+- **Car page, two steps:** **1** get Android Auto ready (tap **Stop** if the head unit server is
+  stuck), **2** connect to the car. Step 2 stays red until Android Auto is ready, then says
+  *plug in the USB cable*.
+- **Hands-free connect:** as soon as the car attaches over USB, 675Link asks for USB permission,
+  answers the car's handshake and starts Android Auto — no taps on the phone. Verified at
+  **1280×720**, staying connected through the car's own stream restarts.
+- **USB settings page:** six switches (enable, handshake, bridge, auto-ready, reply style,
+  try-next-style), each with a one-line hint. Changes save immediately.
+- **Dummy car** on the USB page, so you can try the flow without a car.
+- **Known open items:** touch accuracy and response latency on the car screen are still being tuned.
+
+### 🔔 Ride finished reminder
+
+Android Auto's **head unit server** keeps running after a ride and drains the phone battery.
+When no bike has been linked for **5 minutes** after a ride, 675Link posts a reminder:
+
+- **Turn off** closes 675Link and its service.
+- **Tapping the reminder** opens a short animated guide that shows how to tap **Stop** on Android
+  Auto's *Head unit server running* notification. Android doesn't let other apps stop that server,
+  so this last tap is yours.
+- Switch it **On / Off** in **Setup → Notifications** (on by default). The same tab has
+  **Send test reminder** and a shortcut to Android's notification settings for 675Link.
+
+### 📷 Pairing & QR
+
+- **Standard Wi‑Fi QR codes** (`WIFI:S:<name>;P:<password>;;`) now pair as a bike Wi‑Fi join —
+  for **ZXMOTO** and other dashes that show a plain Wi‑Fi QR instead of a MotoPlay QR.
+- **QR scanner layout:** the 1x / 2x / 3x zoom row sits above the hint panel, and
+  **Import QR from photo** is no longer hidden behind the navigation bar.
+- Logs record the shape of each scanned QR (length, prefix), to help debug dashes that won't scan.
+
+### 🪟 One popup design across the app
+
+Every popup now uses the same **frosted glass** style as the head unit guide: dark translucent card,
+blur behind it (Android 12+), white title, cyan main button, glass **Cancel** button and a soft
+bounce-in. This covers the Garage menu, Wi‑Fi setup, rename, update notes, report a problem, button
+mapping, Bluetooth trigger picker, trips, GPX and the Wi‑Fi / hotspot prompts.
+
+### 🏠 One app, new home screen
+
+A single **675Link** app (no separate OpenCfMoto / 675Link builds), a redesigned home screen with a
+**USB** dock button, and a head unit card that turns red (**Needs restart**) when Android Auto's
+server is on but not answering.
+
+---
+
 ## ✨ Features
 
 | | |
@@ -721,8 +777,10 @@ Most riders can just install the release APK. To build it yourself:
    `sdk.dir=/Users/<you>/Library/Android/sdk` (macOS). This file is git-ignored.
 3. Build the debug APK:
    - Android Studio: open the project and **Run**, or
-   - CLI: `./gradlew assembleDebug` (Windows: `gradlew.bat assembleDebug`). The APK lands in
-     `app/build/outputs/apk/debug/`.
+   - CLI: `./gradlew assembleStandardDebug` (Windows: `gradlew.bat assembleStandardDebug`). The
+     APK lands in `app/build/outputs/apk/standard/debug/`.
+   - 675Link has two flavours: **standard** (the normal app) and **lab** (test build that installs
+     beside it, package suffix `.lab`). Release: `assembleStandardRelease`; lab: `assembleLabDebug`.
 
 Requires JDK 11+ (Android Studio's bundled JBR works). The build uses the Gradle configuration cache
 for fast incremental rebuilds.
